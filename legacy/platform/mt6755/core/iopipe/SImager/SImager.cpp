@@ -132,11 +132,11 @@ execute(MUINT32 const u4TimeoutMs)
         return MFALSE;
     }
 
-    MY_LOGD("Src (fmt, width, height, stride[0]) = (0x%x, %d, %d, %d)",
+    MY_LOGD("Src (fmt, width, height, stride[0]) = (0x%x, %d, %d, %d),timeout:%d",
             mpSrcImgBuf->getImgFormat(),
             mpSrcImgBuf->getImgSize().w,
             mpSrcImgBuf->getImgSize().h,
-            mpSrcImgBuf->getBufStridesInBytes(0));
+            mpSrcImgBuf->getBufStridesInBytes(0),u4TimeoutMs);
 
     MY_LOGD("Dst (fmt, width, height, stride[0]) = (0x%x, %d, %d, %d)",
             mpDstImgBuf->getImgFormat(),

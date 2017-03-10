@@ -87,6 +87,7 @@ using namespace android;
 //
 #include "./inc/stereonodeImpl.h"
 #include "./inc/IspSyncControlHw.h"
+#include "./inc/DepthBokehEffect.h"
 #include "mtkcam/drv/imem_drv.h"
 #include <mtkcam/utils/imagebuf/BaseImageBufferHeap.h>
 #include <mtkcam/utils/imagebuf/IGrallocImageBufferHeap.h>
@@ -163,9 +164,10 @@ namespace NSCamNode {
 #define IMG_1           (0x10)
 #define RGB_1           (0x20)
 #define MAIN            (0x40)
+#define MAIN_1            (0x80)
 //
 // #define PREVIEW_SRC     (FEO_0|FEO_1|IMG_0|IMG_1)
-#define CAPTURE_SRC     (FEO_0|FEO_1|IMG_0|IMG_1|RGB_0|RGB_1|MAIN)
+#define CAPTURE_SRC     (FEO_0|FEO_1|IMG_0|IMG_1|RGB_0|RGB_1|MAIN|MAIN_1)
 // Shane 20141211 In this platform, there is no FEO data
 #define PREVIEW_SRC     (IMG_0|IMG_1)
 // #define CAPTURE_SRC     (IMG_0|IMG_1|RGB_0|RGB_1|MAIN)
@@ -259,6 +261,7 @@ class StereoCtrlNodeImpl : public StereoCtrlNode
         MBOOL                   mbEnable;
         MUINT32                 muPostFrameCnt;
         list<PostBufInfo>       mlPostBufMain;
+        list<PostBufInfo>       mlPostBufMain_1;
         list<PostBufInfo>       mlPostBufImg;
         list<PostBufInfo>       mlPostBufImg_Main2;
         // list<FeoBufInfo>        mlPostBufFeo;
@@ -269,6 +272,7 @@ class StereoCtrlNodeImpl : public StereoCtrlNode
         list<PostBufInfo>       mlPostBufRgb_Main2;
         // for capture fd use.
         IImageBuffer*           mpMainImageBuf;
+        IImageBuffer*           mpMainImageBuf_1;
         //
         IImageBuffer*           mpAlgoSrcImgBuf;
         IImageBuffer*           mpAlgoDstImgBuf;
@@ -276,6 +280,8 @@ class StereoCtrlNodeImpl : public StereoCtrlNode
         MBOOL                   mbAllocDone;
         pthread_t               mThreadAlloc;
         pthread_t               mThreadDoFDDetection;
+        MBOOL loadFromBuffer(IImageBuffer *pDstBuffer, unsigned char *pSrcBuf);
+        MBOOL saveToBuffer(IImageBuffer *pSrcBuffer, unsigned char *pDstBuf);
 };
 
 
@@ -338,6 +344,7 @@ StereoCtrlNodeImpl::
     , mpAlgoSrcImgBuf(NULL)
     , mpAlgoDstImgBuf(NULL)
     , mpMainImageBuf(NULL)
+    , mpMainImageBuf_1(NULL)
     , mpFDSrcImgBuf(NULL)
     , mThreadAlloc(NULL)
     , mThreadDoFDDetection(NULL)
@@ -351,6 +358,7 @@ StereoCtrlNodeImpl::
     addDataSupport( ENDPOINT_SRC, STEREO_CTRL_RGB_0 );
     addDataSupport( ENDPOINT_SRC, STEREO_CTRL_RGB_1 );
     addDataSupport( ENDPOINT_SRC, STEREO_CTRL_MAIN_SRC );
+    addDataSupport( ENDPOINT_SRC, STEREO_CTRL_MAIN_SRC_1 );
     addDataSupport( ENDPOINT_DST, STEREO_CTRL_DST_M );
     addDataSupport( ENDPOINT_DST, STEREO_CTRL_DST_S );
     addDataSupport( ENDPOINT_DST, STEREO_CTRL_MAIN_DST );
@@ -391,6 +399,7 @@ init()
     RRZ_DATA_STEREO_T       sRrzData;
     //
     mlPostBufMain.clear();
+    mlPostBufMain_1.clear();
     mlPostBufImg.clear();
     mlPostBufImg_Main2.clear();
     mlPostBufFeo.clear();
@@ -783,6 +792,7 @@ onStop()
     }
 
     RET_BUFFER(mlPostBufMain, bufIter)
+    RET_BUFFER(mlPostBufMain_1, bufIter)
     RET_BUFFER(mlPostBufImg, bufIter)
     RET_BUFFER(mlPostBufImg_Main2, bufIter)
     RET_BUFFER(mlPostBufRgb, bufIter)
@@ -838,6 +848,17 @@ MBOOL
 StereoCtrlNodeImpl::
 onPostBuffer(MUINT32 const data, MUINTPTR const buf, MUINT32 const ext)
 {
+#if 0
+    if( data == STEREO_CTRL_MAIN_SRC || data == STEREO_CTRL_MAIN_SRC_1) {
+        char szFileName_a[512];
+        static int i = 10;
+        IImageBuffer* srcBuffer = (IImageBuffer*)buf;
+
+        sprintf(szFileName_a, "/sdcard/dump_%dx%d_type_%d.yuv", srcBuffer->getImgSize().w, srcBuffer->getImgSize().h ,i++);
+        ((IImageBuffer*)buf)->saveToFile(szFileName_a);
+    }
+#endif
+
     if(isCapturePath()){
         MY_LOGD_IF(StereoSettingProvider::bEnableLog, "SCNode:onPostBuffer sensor=%d, data=%d isCapturePath", getSensorIdx(), data);
     }
@@ -982,6 +1003,7 @@ pushBuf(MUINT32 const data, MUINTPTR const buf, MUINT32 const ext)
         switch (data)
         {
             push_case(STEREO_CTRL_MAIN_SRC, MAIN,   postBufData, mlPostBufMain);
+            push_case(STEREO_CTRL_MAIN_SRC_1, MAIN_1,   postBufData, mlPostBufMain_1);
             push_case(STEREO_CTRL_IMG_0,    IMG_0,  postBufData, mlPostBufImg);
             push_case(STEREO_CTRL_IMG_1,    IMG_1,  postBufData, mlPostBufImg_Main2);
             push_case(STEREO_CTRL_RGB_0,    RGB_0,  postBufData, mlPostBufRgb);
@@ -1295,7 +1317,7 @@ threadLoopUpdate()
     MUINT32 magicNum = 0;
     SET_DATA_STEREO_T sDataIn;
     OUT_DATA_STEREO_T sDataOut;
-    PostBufInfo postBufMain;
+    PostBufInfo postBufMain, postBufMain_1;
     PostBufInfo postBufImg, postBufImg_Main2;
     // FeoBufInfo  postBufFeo, postBufFeo_Main2;
     PostBufInfo postBufFeo, postBufFeo_Main2;
@@ -1313,11 +1335,11 @@ threadLoopUpdate()
         }
         if ( isCapturePath() )
         {
-            if ( mlPostBufMain.size() == 0
+            if ( mlPostBufMain.size() == 0 || mlPostBufMain_1.size() == 0
                 || mlPostBufRgb.size() == 0 || mlPostBufRgb_Main2.size() == 0 )
             {
-                MY_LOGW("skip threadloop: main(%d) rgb(%d) rgb2(%d)",
-                    mlPostBufMain.size(), mlPostBufRgb.size(), mlPostBufRgb_Main2.size());
+                MY_LOGW("skip threadloop: main(%d) main_1(%d) rgb(%d) rgb2(%d)",
+                    mlPostBufMain.size(),mlPostBufMain_1.size(), mlPostBufRgb.size(), mlPostBufRgb_Main2.size());
                 return ret;
             }
         }
@@ -1347,11 +1369,105 @@ threadLoopUpdate()
             }
             postBufMain     = mlPostBufMain.front();
             mpMainImageBuf = postBufMain.buf;
+
+            postBufMain_1     = mlPostBufMain_1.front();
+            mpMainImageBuf_1 = postBufMain_1.buf;
+
             postBufRgb      = mlPostBufRgb.front();
             postBufRgb_Main2= mlPostBufRgb_Main2.front();
             mlPostBufMain.pop_front();
             mlPostBufRgb.pop_front();
             mlPostBufRgb_Main2.pop_front();
+
+//add Bokeh code here
+        if ( isCapturePath() ) {
+
+            int nMainWidth = 4864;
+            int nMainHeight = 2736;
+
+            int nSecondWidth = 2560;
+            int nSecondHeight = 1440;
+
+            int nBokehWidth, nBokehHeight;
+
+            dbeImageData MainImageData, SecondImageData, BokehImageData;
+
+            int size5M = mpMainImageBuf_1->getImgSize().w * mpMainImageBuf_1->getImgSize().h * 3 / 2;
+            int size13M = mpMainImageBuf->getImgSize().w * mpMainImageBuf->getImgSize().h * 3 / 2;
+
+            unsigned char *p5MBuf  = new unsigned char [size5M];
+            unsigned char *p13MBuf  = new unsigned char [size13M];
+            unsigned char *pBokehMBuf  = new unsigned char [size13M];
+            saveToBuffer(mpMainImageBuf_1, p5MBuf);
+            saveToBuffer(mpMainImageBuf, p13MBuf);
+            // 5M image data
+            SecondImageData.nWidthStride = SecondImageData.nWidth = nSecondWidth;
+            SecondImageData.nHeightStride = SecondImageData.nHeight = nSecondHeight;
+            SecondImageData.nImageType = DBE_IMAGE_TYPE_NV21;
+            SecondImageData.pImageBuffer = p5MBuf;
+
+            // 13M image data
+            MainImageData.nWidthStride = MainImageData.nWidth = nMainWidth;
+            MainImageData.nHeightStride = MainImageData.nHeight = nMainHeight;
+            MainImageData.nImageType = DBE_IMAGE_TYPE_NV21;
+            MainImageData.pImageBuffer = p13MBuf;
+
+            // Bokeh image data
+            nBokehWidth  = nMainWidth;
+            nBokehHeight = nMainHeight;
+            BokehImageData.nWidthStride = BokehImageData.nWidth = nBokehWidth;
+            BokehImageData.nHeightStride = BokehImageData.nHeight = nBokehHeight;
+            BokehImageData.nImageType = DBE_IMAGE_TYPE_NV21;
+            BokehImageData.pImageBuffer = pBokehMBuf;
+            MY_LOGD("-----doBokehProcess----- dbeInit -----");
+            int ret = dbeInit(NULL, NULL, NULL);
+            if (ret != DBE_SUCCESS)
+            {
+                delete[]MainImageData.pImageBuffer;
+                delete[]SecondImageData.pImageBuffer;
+                delete[]BokehImageData.pImageBuffer;
+                dbeRelease();
+                MY_LOGD("####### Bokeh error dbeInit ####### %d\n", ret);
+                return MFALSE;
+            }
+
+            MY_LOGD("-----doBokehProcess----- dbePrepareComputation -----");
+            ret = dbePrepareComputation(&MainImageData, &SecondImageData, 1.0 , 0.9, 2 , 0, ORI_NONE);
+            if (ret != DBE_SUCCESS)
+            {
+                delete[]MainImageData.pImageBuffer;
+                delete[]SecondImageData.pImageBuffer;
+                delete[]BokehImageData.pImageBuffer;
+                dbeRelease();
+                MY_LOGD("####### Bokeh error dbePrepareComputation ####### %d\n", ret);
+                return MFALSE;
+            }
+
+            MY_LOGD("-----doBokehProcess----- dbeBokehImage -----");
+            ret = dbeBokehImage(0, 0, &BokehImageData);
+            if (ret != DBE_SUCCESS)
+            {
+                delete[]MainImageData.pImageBuffer;
+                delete[]SecondImageData.pImageBuffer;
+                delete[]BokehImageData.pImageBuffer;
+                dbeRelease();
+                MY_LOGD("####### Bokeh error dbeBokehImage ####### %d\n", ret);
+                return MFALSE;
+            }
+            MY_LOGD("-----doBokehProcess----- End -----");
+
+            dbeRelease();
+
+            loadFromBuffer(mpMainImageBuf, pBokehMBuf);
+
+            delete[]MainImageData.pImageBuffer;
+            delete[]SecondImageData.pImageBuffer;
+            delete[]BokehImageData.pImageBuffer;
+
+	        //mpMainImageBuf->saveToFile("/sdcard/bokeh_img.yuv");
+        }
+//Bokeh code complete
+
             mpAlgoSrcImgBuf = postBufImg_Main2.buf;
             IImageBufferHeap* pSrcHeap  = mpAlgoSrcImgBuf->getImageBufferHeap();
             IImageBufferHeap* pDstHeap  = mpAlgoDstImgBuf->getImageBufferHeap();
@@ -1527,6 +1643,54 @@ lbExit:
     return MFALSE;
 }
 
+/******************************************************************************
+ *
+ ******************************************************************************/
+MBOOL
+StereoCtrlNodeImpl::
+saveToBuffer(IImageBuffer *pSrcBuffer, unsigned char *pDstBuf)
+{
+    int offset = 0;
+    for (size_t i = 0; i < pSrcBuffer->getPlaneCount(); i++)
+    {
+        MUINT8 *pBuf = (MUINT8*)pSrcBuffer->getBufVA(i);
+        size_t size = pSrcBuffer->getBufSizeInBytes(i);
+
+        memcpy(pDstBuf + offset, pBuf, size);
+
+        MY_LOGD("Bokeh saveToBuffer [%d-th plane] write %d bytes to pDstBuf, offset: %d", i, size, offset);
+
+        offset += size;
+    }
+
+    pSrcBuffer->syncCache(eCACHECTRL_INVALID);
+
+    return MTRUE;
+}
+
+
+/******************************************************************************
+ *
+ ******************************************************************************/
+MBOOL
+StereoCtrlNodeImpl::
+loadFromBuffer(IImageBuffer *pDstBuffer, unsigned char *pSrcBuf)
+{
+    int offset = 0;
+    for (size_t i = 0; i < pDstBuffer->getPlaneCount(); i++)
+    {
+        MUINT8 *pBuf = (MUINT8*)pDstBuffer->getBufVA(i);
+        size_t size = pDstBuffer->getBufSizeInBytes(i);
+
+        memcpy(pBuf, pSrcBuf + offset, size);
+
+        MY_LOGD("Bokeh loadFromBuffer [%d-th plane] write %d bytes to pDstBuffer, offset: %d", i, size, offset);
+
+        offset += size;
+    }
+
+    return MTRUE;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 };  //namespace NSCamNode

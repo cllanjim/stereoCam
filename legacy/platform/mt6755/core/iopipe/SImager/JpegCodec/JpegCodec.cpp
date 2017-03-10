@@ -91,6 +91,11 @@ using namespace NSCam::Utils::Format;
 
 #define MEDIA_PATH "/sdcard/"
 
+//Bokeh
+#include <cutils/sockets.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <sys/un.h>
 
 #define CHECK_OBJECT(x)  { if (x == NULL) { MY_LOGE("Null %s Object", #x); return MFALSE;}}
 /*******************************************************************************

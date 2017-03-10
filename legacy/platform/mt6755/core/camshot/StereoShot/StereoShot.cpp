@@ -155,12 +155,13 @@ enum
     CTRLNODE            ,
     CTRLNODE_MAIN2      ,
     SNODE_CAPTURE       ,
-    SNODE_MAIN          ,   // 5
+    SNODE_CAPTURE2      ,
+    SNODE_MAIN          ,   // 6
     SNODE_MAIN2         ,
     SCTRLNODE           ,
     ITNODE              ,
     DUALITNODE          ,
-    HWJPEGNODE          ,   // 10
+    HWJPEGNODE          ,   // 11
     //HWJPSNODE           ,
     SWJPEGNODE          ,
     CALLBACKNODE        ,
@@ -173,6 +174,7 @@ enum
     DATA_RESIZEDRAW         = 0x00000002,
 
     DATA_MAINYUV            = 0x00000004,   //
+    DATA_MAINYUV_1          = 0x00000005,
     DATA_RESIZEDYUV         = 0x00000008,
 
     DATA_SIMG               = 0x00000010,   // SNode out
@@ -263,6 +265,7 @@ struct connect_notify_rule
 static const struct map_data2node gMapData2Node_Raw[] =
 {
     { DATA_MAINYUV          , PASS2_CAP_DST_0       , bitS2(CONTROL_CAP_SRC, PASS2_CAP_SRC)             } ,
+    { DATA_MAINYUV_1,         PASS2_CAP_DST_4       , bitS2(CONTROL_CAP_SRC, PASS2_CAP_SRC)             } ,
     { DATA_RESIZEDYUV       , STEREO_SRC            , bitS2(CONTROL_PRV_SRC, STEREO_SRC)                } ,
 
     { DATA_ITMAINYUV        , TRANSFORM_DST_1       , bitS2(STEREO_CTRL_MAIN_DST, TRANSFORM_SRC)        } ,
@@ -331,6 +334,7 @@ StereoShot(
     , mpCtrl(NULL)
     , mpCtrl_Main2(NULL)
     , mpStereoCapNode(NULL)
+    , mpStereoCapNode_Main2(NULL)
     , mpStereoNode(NULL)
     , mpStereoNode_Main2(NULL)
     , mpStereoCtrlNode(NULL)
@@ -565,7 +569,7 @@ startOne(SensorParam const & rSensorParam)
             && prepareMemory(
                     DATA_DUALITSBS,
                     mJpegParam.u4JpsWidth, mJpegParam.u4JpsHeight,
-                    eImgFmt_YUY2,
+                    eImgFmt_NV21,
                     0,
                     NSImageio::NSIspio::EPortCapbility_Cap);
     }
@@ -595,6 +599,8 @@ startOne(SensorParam const & rSensorParam)
     {
         ret = ret && enableData(DATA_MAINYUV);
     }
+
+
 
     if( dataInBit & DATA_RESIZEDYUV )
     {
@@ -644,10 +650,12 @@ startOne(SensorParam const & rSensorParam)
             && prepareMemory(
                     DATA_MAINYUV,
                     mainSize.w, mainSize.h,
-                    eImgFmt_YUY2,
+                    eImgFmt_NV21,
                     0,
                     NSImageio::NSIspio::EPortCapbility_Cap);
     }
+
+
 
     if( dataInBit & DATA_ITMAINYUV )
     {
@@ -655,7 +663,7 @@ startOne(SensorParam const & rSensorParam)
             && prepareMemory(
                     DATA_ITMAINYUV,
                     RotPicWidth, RotPicHeight,
-                    eImgFmt_YUY2,
+                    eImgFmt_NV21,
                     mShotParam.u4PictureTransform,
                     NSImageio::NSIspio::EPortCapbility_Cap);
     }
@@ -666,7 +674,7 @@ startOne(SensorParam const & rSensorParam)
             && prepareMemory(
                     DATA_DUALIT_M,
                     RotThuWidth, RotThuHeight,
-                    eImgFmt_YUY2,
+                    eImgFmt_NV21,
                     mShotParam.u4PictureTransform,
                     NSImageio::NSIspio::EPortCapbility_Cap);
     }
@@ -832,7 +840,7 @@ startOne(
             && prepareMemory(
                     DATA_DUALITSBS,
                     mJpegParam.u4JpsWidth, mJpegParam.u4JpsHeight,
-                    eImgFmt_YUY2,
+                    eImgFmt_NV21,
                     0,
                     NSImageio::NSIspio::EPortCapbility_Cap);
     }
@@ -856,6 +864,8 @@ startOne(
     {
         ret = ret && enableData(DATA_MAINYUV);
     }
+
+    ret = ret && enableData(DATA_MAINYUV_1);
 
     if( dataInBit & DATA_RESIZEDYUV )
     {
@@ -908,18 +918,24 @@ startOne(
             && prepareMemory(
                     DATA_MAINYUV,
                     mainSize.w, mainSize.h,
-                    eImgFmt_YUY2,
+                    eImgFmt_NV21,
                     0,
                     NSImageio::NSIspio::EPortCapbility_Cap);
     }
-
+        ret = ret
+            && prepareMemory(
+                    DATA_MAINYUV_1,
+                    2560, 1440,
+                    eImgFmt_NV21,
+                    0,
+                    NSImageio::NSIspio::EPortCapbility_Cap);
     if( dataInBit & DATA_ITMAINYUV )
     {
         ret = ret
             && prepareMemory(
                     DATA_ITMAINYUV,
                     RotPicWidth, RotPicHeight,
-                    eImgFmt_YUY2,
+                    eImgFmt_NV21,
                     mShotParam.u4PictureTransform,
                     NSImageio::NSIspio::EPortCapbility_Cap);
     }
@@ -931,7 +947,7 @@ startOne(
             && prepareMemory(
                     DATA_DUALIT_M,
                     RotThuWidth, RotThuHeight,
-                    eImgFmt_YUY2,
+                    eImgFmt_NV21,
                     mShotParam.u4PictureTransform,
                     NSImageio::NSIspio::EPortCapbility_Cap);
     }
@@ -1345,9 +1361,11 @@ createNodes(
     }
 
     mpStereoCapNode         = Pass2Node::createInstance( PASS2_CAPTURE );
+    mpStereoCapNode_Main2   = Pass2Node::createInstance( PASS2_CAPTURE );
     const float CROP_RATIO = StereoSettingProvider::getFOVCropRatio();
     if(CROP_RATIO < 1.0f) {
         mpStereoCapNode->setCropRatio(CROP_RATIO);
+        mpStereoCapNode_Main2->setCropRatio(CROP_RATIO);
     }
 
     mpStereoNode            = StereoNode::createInstance( SNodeInitCfg );
@@ -1357,6 +1375,7 @@ createNodes(
     mpDualITNode            = DualImgTransformNode::createInstance( StereoSettingProvider::getSensorRelativePosition(),  StereoSettingProvider::getJPSTransformFlag() );
 
     mpStereoCapNode->setSensorIdx( getOpenId_Main() );
+    mpStereoCapNode_Main2->setSensorIdx( getOpenId_Main2() );
     mpStereoNode->setSensorIdx( getOpenId_Main() );
     mpStereoNode_Main2->setSensorIdx( getOpenId_Main2() );
     mpITNode->setSensorIdx( getOpenId_Main() );
@@ -1414,6 +1433,7 @@ destroyNodes()
     NODE_DESTROY(mpCtrl)
     NODE_DESTROY(mpCtrl_Main2)
     NODE_DESTROY(mpStereoCapNode)
+    NODE_DESTROY(mpStereoCapNode_Main2)
     NODE_DESTROY(mpStereoNode)
     NODE_DESTROY(mpStereoNode_Main2)
     NODE_DESTROY(mpStereoCtrlNode)
@@ -1480,7 +1500,7 @@ updateNeededData(MUINT32* pNeededData, MUINT32* pNeededCb) const
         *pNeededData |= DATA_RESIZEDRAW;
 
     //
-    *pNeededData |= (DATA_MAINYUV | DATA_RESIZEDYUV);
+    *pNeededData |= (DATA_MAINYUV | DATA_MAINYUV_1 | DATA_RESIZEDYUV);
     *pNeededData |= (DATA_SIMG | DATA_SFEO | DATA_SRGB | DATA_SMAIN | DATA_SCMAIN);
 
     //main jpeg
@@ -1581,17 +1601,19 @@ connectNodes(MUINT32 NodeDataSet)
     mpGraph->connectData(   CONTROL_PRV_SRC,        SYNC_SRC_0,             mpCtrl,                 mpSyncNode);
     mpGraph->connectData(   CONTROL_PRV_SRC,        SYNC_SRC_1,             mpCtrl_Main2,           mpSyncNode);
     mpGraph->connectData(   CONTROL_CAP_SRC,        SYNC_SRC_2,             mpCtrl,                 mpSyncNode);
+    mpGraph->connectData(   CONTROL_CAP_SRC,        SYNC_SRC_3,             mpCtrl_Main2,           mpSyncNode);
     // // [ SyncNode -- SNode ]
     mpGraph->connectData(   SYNC_DST_0,             STEREO_SRC,             mpSyncNode,             mpStereoNode);
     mpGraph->connectData(   SYNC_DST_1,             STEREO_SRC,             mpSyncNode,             mpStereoNode_Main2);
     mpGraph->connectData(   SYNC_DST_2,             PASS2_CAP_SRC,          mpSyncNode,             mpStereoCapNode);
+    mpGraph->connectData(   SYNC_DST_3,             PASS2_CAP_SRC,          mpSyncNode,             mpStereoCapNode_Main2);
     // [ SNode -- SCNode (do stereo feature algo) ]
     mpGraph->connectData(   STEREO_IMG,             STEREO_CTRL_IMG_1,      mpStereoNode_Main2,     mpStereoCtrlNode);
     mpGraph->connectData(   STEREO_RGB,             STEREO_CTRL_RGB_1,      mpStereoNode_Main2,     mpStereoCtrlNode);
     mpGraph->connectData(   STEREO_IMG,             STEREO_CTRL_IMG_0,      mpStereoNode,           mpStereoCtrlNode);
     mpGraph->connectData(   STEREO_RGB,             STEREO_CTRL_RGB_0,      mpStereoNode,           mpStereoCtrlNode);
     mpGraph->connectData(   PASS2_CAP_DST_0,        STEREO_CTRL_MAIN_SRC,   mpStereoCapNode,        mpStereoCtrlNode);
-
+    mpGraph->connectData(   PASS2_CAP_DST_4,        STEREO_CTRL_MAIN_SRC_1, mpStereoCapNode_Main2,  mpStereoCtrlNode);
     // Shane 20150108
     MY_LOGD("StereoShot remove STEREO_FEO data connections");
     // mpGraph->connectData(   STEREO_FEO,             STEREO_CTRL_FEO_1,      mpStereoNode_Main2,     mpStereoCtrlNode);
@@ -1713,6 +1735,8 @@ getNode(MUINT32 node)
             return mpCtrl_Main2;
         case SNODE_CAPTURE:
             return mpStereoCapNode;
+        case SNODE_CAPTURE2:
+            return mpStereoCapNode_Main2;
         case SNODE_MAIN:
             return mpStereoNode;
         case SNODE_MAIN2:
@@ -1753,7 +1777,7 @@ doRegisterBuffers()
     {
         MUINT32 nodeDataType = mapToNodeData(pRegbuf->muDATA);
         if( nodeDataType ) {
-            MY_LOGD("data %d, buf", nodeDataType, pRegbuf->mBuffer);
+            MY_LOGD("data %d, buf:%dx%d", nodeDataType, pRegbuf->mBuffer->getImgSize().w,pRegbuf->mBuffer->getImgSize().h);
             ret = ret && mpAllocBufHandler->registerBuffer(nodeDataType, pRegbuf->mBuffer);
             ret = ret && mpAllocBufHandler_Main2->registerBuffer(nodeDataType, pRegbuf->mBuffer);
         } else {
@@ -1779,7 +1803,6 @@ enableData(MUINT32 const dataType)
         MY_LOGE("dataType(0x%x) nodeDataType(%d)", dataType, nodeDataType);
         return MTRUE;
     }
-
     MBOOL ret = MTRUE;
     MBOOL bRegistered = (muRegisteredBufType & dataType);
     ret = ret
@@ -1811,7 +1834,6 @@ prepareMemory(MUINT32 const dataType,
     if( nodeDataType == 0 ) {
         return MTRUE;
     }
-
     MY_LOGD("mem: nodedata %d, wxh %dx%d, fmt 0x%x, trans %d",
             nodeDataType, _w, _h, _fmt, _trans);
 
@@ -1822,12 +1844,23 @@ prepareMemory(MUINT32 const dataType,
 
     if( !bRegistered )
     {
-        ret = ret
-            && mpAllocBufHandler->updateRequest( nodeDataType, _trans, usage );
+        if(nodeDataType == PASS2_CAP_DST_4) 
+        {
+            ret = ret
+                && mpAllocBufHandler_Main2->updateRequest( nodeDataType, _trans, usage );
 
-        ret = ret
-            && mpAllocBufHandler->updateFlag( nodeDataType, FLAG_BUFFER_ONESHOT )
-            && mpAllocBufHandler->requestBuffer( nodeDataType, info );
+            ret = ret
+                && mpAllocBufHandler_Main2->updateFlag( nodeDataType, FLAG_BUFFER_ONESHOT )
+                && mpAllocBufHandler_Main2->requestBuffer( nodeDataType, info );
+		}
+	    else {
+            ret = ret
+                && mpAllocBufHandler->updateRequest( nodeDataType, _trans, usage );
+
+            ret = ret
+                && mpAllocBufHandler->updateFlag( nodeDataType, FLAG_BUFFER_ONESHOT )
+                && mpAllocBufHandler->requestBuffer( nodeDataType, info );
+		}
     }
 
     if( !ret )

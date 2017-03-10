@@ -228,6 +228,7 @@ private:    //// data members
     StereoShotCtrlNode*             mpCtrl;
     StereoShotCtrlNode*             mpCtrl_Main2;
     Pass2Node*                      mpStereoCapNode;
+    Pass2Node*                      mpStereoCapNode_Main2;
     StereoNode*                     mpStereoNode;
     StereoNode*                     mpStereoNode_Main2;
     StereoCtrlNode*                 mpStereoCtrlNode;

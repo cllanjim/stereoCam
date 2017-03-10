@@ -144,6 +144,7 @@ CapPass2(Pass2NodeType const type)
     addDataSupport( ENDPOINT_DST , PASS2_CAP_DST_1);
     addDataSupport( ENDPOINT_DST , PASS2_CAP_DST_2);
     addDataSupport( ENDPOINT_DST , PASS2_CAP_DST_3);
+    addDataSupport( ENDPOINT_DST , PASS2_CAP_DST_4);
 
     muDequeOrder[0] = PASS2_CAP_DST_1;
     muDequeOrder[1] = PASS2_CAP_DST_0;
@@ -808,28 +809,36 @@ getPass2Buffer(vector<p2data>& vP2data)
         mlPostBufData.pop_front();
     }
 
-    // get output bufffers
-    for(MUINT32 i=0; i<MAX_DST_PORT_NUM; i++)
-    {
-        MBOOL ret;
-        ImgRequest outRequest;
-        //
-        if(muDequeOrder[i] == 0)
-            break;
+    MBOOL ret;
+    ImgRequest outRequest;
 
+    if(pSrcBuf->getImgSize().w == 2592) {
         ret = getDstBuffer(
-                muDequeOrder[i],
-                &outRequest);
-        //
-        if(ret)
+            PASS2_CAP_DST_4, &outRequest);
+	    if(ret)
         {
             haveDst = MTRUE;
-
             one.vDstReq.push_back(outRequest);
-            one.vDstData.push_back(muDequeOrder[i]);
+            one.vDstData.push_back(PASS2_CAP_DST_4);
+        }
+    } else {
+        // get output bufffers
+        for(MUINT32 i=0; i<MAX_DST_PORT_NUM; i++)
+        {
+
+            if(muDequeOrder[i] == 0)
+                break;
+            ret = getDstBuffer(
+                muDequeOrder[i],
+                &outRequest);
+            if(ret)
+            {
+                haveDst = MTRUE;
+                one.vDstReq.push_back(outRequest);
+                one.vDstData.push_back(muDequeOrder[i]);
+            }
         }
     }
-
     if( one.vDstReq[0].mTransform & eTransform_ROT_90 ) //90, 270
     {
         MSize temp = one.vDstReq[0].mBuffer->getImgSize();

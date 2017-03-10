@@ -205,10 +205,12 @@ class SyncNodeImpl : public SyncNode
         list<PostBufInfo>                       mlPostBuf_0; // PASS1_RESIZEDRAW from main1
         list<PostBufInfo>                       mlPostBuf_1; // PASS1_RESIZEDRAW from main2
         list<PostBufInfo>                       mlPostBuf_2; // PASS1_FULLRAW    from main1
+        list<PostBufInfo>                       mlPostBuf_3; // PASS1_FULLRAW    from main2
 
         list<PostBufInfo>                       mlPostBuf_0_return_queue; // PASS1_RESIZEDRAW return queue from main1
         list<PostBufInfo>                       mlPostBuf_1_return_queue; // PASS1_RESIZEDRAW return queue from main2
         list<PostBufInfo>                       mlPostBuf_2_return_queue; // PASS1_FULLRAW    return queue from main1
+        list<PostBufInfo>                       mlPostBuf_3_return_queue; // PASS1_FULLRAW    return queue from main2
         //
         MBOOL                                   mbEnable;
         MBOOL                                   mbEnable_CapBuf;
@@ -309,6 +311,7 @@ SyncNodeImpl::
     addDataSupport( ENDPOINT_SRC, SYNC_SRC_0 );
     addDataSupport( ENDPOINT_SRC, SYNC_SRC_1 );
     addDataSupport( ENDPOINT_SRC, SYNC_SRC_2 );
+    addDataSupport( ENDPOINT_SRC, SYNC_SRC_3 );
     addDataSupport( ENDPOINT_DST, SYNC_DST_0 );
     addDataSupport( ENDPOINT_DST, SYNC_DST_1 );
 
@@ -316,6 +319,7 @@ SyncNodeImpl::
     if(isCapturePath){
         addDataSupport( ENDPOINT_DST, CONTROL_STEREO_RAW_DST);
         addDataSupport( ENDPOINT_DST, SYNC_DST_2 );
+        addDataSupport( ENDPOINT_DST, SYNC_DST_3 );
         // Notify
         addNotifySupport( SYNC_OK_SRC_0 | SYNC_OK_SRC_1);
         //
@@ -419,7 +423,7 @@ stopPreview()
 {
     Mutex::Autolock lock(mLock);
     mQueueLock.lock();
-    MY_LOGD("+ buf size(%d, %d, %d)", mlPostBuf_0.size(), mlPostBuf_1.size(), mlPostBuf_2.size());
+    MY_LOGD("+ buf size(%d, %d, %d, %d)", mlPostBuf_0.size(), mlPostBuf_1.size(), mlPostBuf_2.size(),mlPostBuf_3.size());
     MY_LOGD("+ cap_buf_len:%d  post_cnt:%d", cap_buf_len, post_cnt);
     MY_LOGD("+ isZSDMode:%d", isZSDMode);
 
@@ -449,7 +453,7 @@ stopPreview()
         RET_BUFFER(mlPostBuf_0)
         RET_BUFFER(mlPostBuf_1)
         RET_BUFFER(mlPostBuf_2)
-
+        RET_BUFFER(mlPostBuf_3)
         if(isZSDMode){
             // wait for all post buf returns
             while(post_cnt > 0)
@@ -479,9 +483,11 @@ onInit()
     mlPostBuf_0.clear();
     mlPostBuf_1.clear();
     mlPostBuf_2.clear();
+    mlPostBuf_3.clear();
     mlPostBuf_0_return_queue.clear();
     mlPostBuf_1_return_queue.clear();
     mlPostBuf_2_return_queue.clear();
+    mlPostBuf_3_return_queue.clear();
     //
     post_cnt = 0;
     cap_buf_len = 0;
@@ -537,7 +543,7 @@ onStop()
     Mutex::Autolock lock(mLock);
     Mutex::Autolock qLock(mQueueLock);
     {
-        MY_LOGD("+ buf size(%d, %d, %d)", mlPostBuf_0.size(), mlPostBuf_1.size(), mlPostBuf_2.size());
+        MY_LOGD("+ buf size(%d, %d, %d, %d)", mlPostBuf_0.size(), mlPostBuf_1.size(), mlPostBuf_2.size(),mlPostBuf_3.size());
 
         mbEnable = MFALSE;
 
@@ -553,7 +559,7 @@ onStop()
                 RET_BUFFER(mlPostBuf_0)
                 RET_BUFFER(mlPostBuf_1)
                 RET_BUFFER(mlPostBuf_2)
-
+                RET_BUFFER(mlPostBuf_3)
         #undef RET_BUFFER
 
         // clear and return cap buf
@@ -651,10 +657,11 @@ onReturnBuffer(MUINT32 const data, MUINTPTR const buf, MUINT32 const ext)
         switch(data)
         {
             case SYNC_DST_0:{
-                MY_LOGD("SYNC_DST_0 return_queue size(%d, %d, %d)",
+                MY_LOGD("SYNC_DST_0 return_queue size(%d, %d, %d, %d)",
                     mlPostBuf_0_return_queue.size(),
                     mlPostBuf_1_return_queue.size(),
-                    mlPostBuf_2_return_queue.size()
+                    mlPostBuf_2_return_queue.size(),
+                    mlPostBuf_3_return_queue.size()
                 );
                 if( mlPostBuf_1_return_queue.size() > 0 && mlPostBuf_2_return_queue.size() > 0){
                     // All three buf returns
@@ -846,6 +853,7 @@ isBothFrameArrived(){
             // Check if the full & resized buffer are the same pair
             PostBufInfo postBuf_0   = mlPostBuf_0.front();
             PostBufInfo postBuf_2   = mlPostBuf_2.front();
+            // todo: add check for main2 buffer pair---johnny
             if(abs(postBuf_0.buf->getTimestamp() - postBuf_2.buf->getTimestamp()) / 1000000 > 0){
                 return MFALSE;
             }else{
@@ -980,6 +988,15 @@ pushBuf(MUINT32 const data, IImageBuffer* const buf, MUINT32 const ext)
             }
             ret = MTRUE;
             break;
+        case SYNC_SRC_3:
+            mlPostBuf_3.push_back(postBufData);
+            while( mlPostBuf_3.size() > 1 ) {
+                retBufData = mlPostBuf_3.front();
+                mlPostBuf_3.pop_front();
+                handleReturnBuffer(retBufData.data, (MUINTPTR)retBufData.buf, -1);
+            }
+            ret = MTRUE;
+            break;
         default:
             MY_LOGE("Unsupported data(%d)", data);
             handleReturnBuffer(data, (MUINTPTR)buf);
@@ -989,6 +1006,7 @@ pushBuf(MUINT32 const data, IImageBuffer* const buf, MUINT32 const ext)
 
     // if frames from each sensor have not arrived yet
     if(!isBothFrameArrived()){
+        MY_LOGD("Not both frame coming!!!");
         return MTRUE;
     }
 
@@ -998,6 +1016,7 @@ pushBuf(MUINT32 const data, IImageBuffer* const buf, MUINT32 const ext)
         //if(true){
         muFrameCnt++;
         //
+        MY_LOGD("time is synced");
         PostBufInfo postBuf_0   = mlPostBuf_0.front();
         PostBufInfo postBuf_1   = mlPostBuf_1.front();
         mlPostBuf_0.pop_front();
@@ -1018,9 +1037,12 @@ pushBuf(MUINT32 const data, IImageBuffer* const buf, MUINT32 const ext)
             // Capture
             PostBufInfo postBuf_2   = mlPostBuf_2.front();
             mlPostBuf_2.pop_front();
-
+            PostBufInfo postBuf_3;
+            if(mlPostBuf_3.size() > 0) {
+                postBuf_3   = mlPostBuf_3.front();
+                mlPostBuf_3.pop_front();
+            }
             if(miSyncDump){
-
                 if(!makePath("/sdcard/mtklog/syncdump/",0660))
                 {
                     MY_LOGE("makePath [%s] fail","/sdcard/mtklog/syncdump/");
@@ -1038,6 +1060,10 @@ pushBuf(MUINT32 const data, IImageBuffer* const buf, MUINT32 const ext)
                 buffer = postBuf_2.buf;
                 sprintf(filename, "/sdcard/mtklog/syncdump/main1_imgo_%dx%d_%d.raw", buffer->getImgSize().w,buffer->getImgSize().h,buffer->getBufStridesInBytes(0));
                 buffer->saveToFile(filename);
+
+                buffer = postBuf_3.buf;
+                sprintf(filename, "/sdcard/mtklog/syncdump/main1_imgo_%dx%d_%d.raw", buffer->getImgSize().w,buffer->getImgSize().h,buffer->getBufStridesInBytes(0));
+                buffer->saveToFile(filename);
             }
 
             MY_LOGD_IF(StereoSettingProvider::bEnableLog, "Stereo_Profile: SYNC_DST_0: %d buf: 0x%08X", SYNC_DST_0, postBuf_0.buf);
@@ -1046,7 +1072,8 @@ pushBuf(MUINT32 const data, IImageBuffer* const buf, MUINT32 const ext)
             handlePostBuffer(SYNC_DST_1, (MUINTPTR)postBuf_1.buf);
             MY_LOGD_IF(StereoSettingProvider::bEnableLog, "Stereo_Profile: SYNC_DST_2: %d buf: 0x%08X", SYNC_DST_2, postBuf_2.buf);
             handlePostBuffer(SYNC_DST_2, (MUINTPTR)postBuf_2.buf);
-
+            MY_LOGD_IF(StereoSettingProvider::bEnableLog, "Stereo_Profile: SYNC_DST_2: %d buf: 0x%08X", SYNC_DST_3, postBuf_3.buf);
+            handlePostBuffer(SYNC_DST_3, (MUINTPTR)postBuf_3.buf);
             // notify sync_ok to stop pass1
             handleNotify( SYNC_OK_SRC_0, 0, 0 );
             handleNotify( SYNC_OK_SRC_1, 0, 0 );
@@ -1058,7 +1085,6 @@ pushBuf(MUINT32 const data, IImageBuffer* const buf, MUINT32 const ext)
             // low FPS simulation
             if( muFrameCnt % mFPSFactor == 0 ){
                 // handle post buffer, PASS1_RESIZEDRAW
-
                 handlePostBuffer(SYNC_DST_0, (MUINTPTR)postBuf_0.buf);
                 handlePostBuffer(SYNC_DST_1, (MUINTPTR)postBuf_1.buf);  // If there is no next node, thread will block in self onReturnBuffer function call
 
@@ -1067,7 +1093,13 @@ pushBuf(MUINT32 const data, IImageBuffer* const buf, MUINT32 const ext)
                     PostBufInfo postBuf_2   = mlPostBuf_2.front();
                     mlPostBuf_2.pop_front();
                     mlPostBuf_2_return_queue.push_back(postBuf_2);
-        		}
+
+                    if(mlPostBuf_3.size() > 0) {
+                        PostBufInfo postBuf_3   = mlPostBuf_3.front();
+                        mlPostBuf_3.pop_front();
+                        mlPostBuf_3_return_queue.push_back(postBuf_3);
+                    }
+                }
                 post_cnt ++;
             }else{
                 handleReturnBuffer(SYNC_SRC_0, (MUINTPTR)postBuf_0.buf, -1);
@@ -1076,6 +1108,11 @@ pushBuf(MUINT32 const data, IImageBuffer* const buf, MUINT32 const ext)
                     PostBufInfo postBuf_2   = mlPostBuf_2.front();
                     mlPostBuf_2.pop_front();
                     handleReturnBuffer(SYNC_SRC_2, (MUINTPTR)postBuf_2.buf, -1);
+                    if(mlPostBuf_3.size() > 0) {
+                        PostBufInfo postBuf_3   = mlPostBuf_3.front();
+                        mlPostBuf_3.pop_front();
+                        handleReturnBuffer(SYNC_SRC_3, (MUINTPTR)postBuf_3.buf, -1);
+                    }
                 }
 
             }
@@ -1085,7 +1122,6 @@ pushBuf(MUINT32 const data, IImageBuffer* const buf, MUINT32 const ext)
     } else if(syncResult == SYNC_DIFF_LESS_33) {
         // In this case, it means the range of time diff between SYNC_SRC_0 and SYNC_SRC_1 is 10~32 ms.
         // We have to drop all the SRC to wait for the next frames arrives
-
         // Drop all frames from SYNC_SRC
             while( mlPostBuf_1.size() > 0 ) {
                 retBufData = mlPostBuf_1.front();
@@ -1102,6 +1138,11 @@ pushBuf(MUINT32 const data, IImageBuffer* const buf, MUINT32 const ext)
                 mlPostBuf_2.pop_front();
                 handleReturnBuffer(retBufData.data, (MUINTPTR)retBufData.buf, -1);
             }
+			while( mlPostBuf_3.size() > 0 ) {
+                retBufData = mlPostBuf_3.front();
+                mlPostBuf_3.pop_front();
+                handleReturnBuffer(retBufData.data, (MUINTPTR)retBufData.buf, -1);
+            }
 
         ret = MTRUE;
     } else if(syncResult == SYNC_SRC0_OLD) {
@@ -1110,6 +1151,7 @@ pushBuf(MUINT32 const data, IImageBuffer* const buf, MUINT32 const ext)
         // And the time stamp of SYNC_SRC_0 is older than the time stamp of SYNC_SRC_1
 
         // Drop frames from SYNC_SRC_0 and SYNC_SRC_2
+        //todo johnny to drop src3
         while( mlPostBuf_0.size() > 0 ) {
             retBufData = mlPostBuf_0.front();
             mlPostBuf_0.pop_front();
@@ -1125,6 +1167,7 @@ pushBuf(MUINT32 const data, IImageBuffer* const buf, MUINT32 const ext)
     } else if(syncResult == SYNC_SRC1_OLD) {
 
         // Drop frame from SYNC_SRC_1
+        // todo johnny to drop src3
         while( mlPostBuf_1.size() > 0 ) {
             retBufData = mlPostBuf_1.front();
             mlPostBuf_1.pop_front();
