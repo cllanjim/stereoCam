@@ -14,8 +14,7 @@ extern "C" {
 #define DBE_SUCCESS                    0
 #define DBE_ERR_UNINITIALIZED         -1
 #define DBE_ERR_PARAMETER             -2
-#define DBE_ERR_DENOISE               -3
-#define DBE_ERR_PROCESS               -4
+#define DBE_ERR_PROCESS               -3
 
 
 typedef enum tagdbeOrientation
@@ -90,12 +89,15 @@ int dbeRelease();
                 fDownScale          -- downscale ratio of the second image
 				nProcessLevel       -- process level
 				nReserved           -- reserved parameter
-				orientation         -- phone orientation when take photo,				                 
+				orientation         -- phone orientation when take photo
+				bCameraAlongX       -- if bCameraAlongX==true, dual camera configured along X(Horizontal),
+				                       if bCameraAlongX==false, dual camera configured along Y(Vertical)
+
 */
 
-int dbePrepareComputation(_In_ dbeImageData* pMainImage, _In_ dbeImageData* pSecondImage, _In_ float fUpScale,
-	_In_ float fDownScale, _In_ int nProcessLevel, _In_ int nReserved, dbeOrientation orientation);
 
+int dbePrepareComputation(_In_ dbeImageData* pMainImage, _In_ dbeImageData* pSecondImage, _In_ float fUpScale,
+	_In_ float fDownScale, _In_ int nProcessLevel, _In_ int nReserved, dbeOrientation orientation, bool bCameraAlongX);
 
 
 /*

@@ -1419,6 +1419,9 @@ threadLoopUpdate()
             BokehImageData.nHeightStride = BokehImageData.nHeight = nBokehHeight;
             BokehImageData.nImageType = DBE_IMAGE_TYPE_NV21;
             BokehImageData.pImageBuffer = pBokehMBuf;
+
+            MY_LOGD("-----Bokeh lib version:%d-----",dbeGetVersion());
+
             MY_LOGD("-----doBokehProcess----- dbeInit -----");
             int ret = dbeInit(NULL, NULL, NULL);
             if (ret != DBE_SUCCESS)
@@ -1432,7 +1435,7 @@ threadLoopUpdate()
             }
 
             MY_LOGD("-----doBokehProcess----- dbePrepareComputation -----");
-            ret = dbePrepareComputation(&MainImageData, &SecondImageData, 1.0 , 0.9, 2 , 0, ORI_NONE);
+            ret = dbePrepareComputation(&MainImageData, &SecondImageData, 1.0 , 0.9, 4 , 0, ORI_0, false);
             if (ret != DBE_SUCCESS)
             {
                 delete[]MainImageData.pImageBuffer;
@@ -1444,7 +1447,7 @@ threadLoopUpdate()
             }
 
             MY_LOGD("-----doBokehProcess----- dbeBokehImage -----");
-            ret = dbeBokehImage(0, 0, &BokehImageData);
+            ret = dbeBokehImage(-1, -1, &BokehImageData);
             if (ret != DBE_SUCCESS)
             {
                 delete[]MainImageData.pImageBuffer;
