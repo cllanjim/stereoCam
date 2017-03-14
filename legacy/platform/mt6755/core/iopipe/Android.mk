@@ -131,10 +131,6 @@ ifeq "'1'" "$(strip $(MTKCAM_USE_LEGACY_JPEGHW))"
 endif
 #
 
-# Bokeh
-LOCAL_SHARED_LIBRARIES += libDepthBokehEffect
-
-
 #-----------------------------------------------------------
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libcam.iopipe

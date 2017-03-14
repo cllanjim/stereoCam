@@ -1379,23 +1379,104 @@ threadLoopUpdate()
             mlPostBufRgb.pop_front();
             mlPostBufRgb_Main2.pop_front();
 
-//add Bokeh code here
-            int nMainWidth = 4864;
-            int nMainHeight = 2736;
+            //add Bokeh code here
+            int saveImage, getOrientation, getFocusX, getFocusY;
+            char savePicture[256] = {0};
+            char propVal[PROPERTY_VALUE_MAX];
 
-            int nSecondWidth = 2560;
-            int nSecondHeight = 1440;
+            property_get("debug.bokeh.camera.save", propVal, "0");
+            saveImage = ::atoi(propVal);
 
-            int nBokehWidth, nBokehHeight;
+            property_get("debug.bokeh.orientation", propVal, "0");
+            getOrientation = ::atoi(propVal);
+
+            property_get("debug.bokeh.focusx", propVal, "-1");
+            getFocusX = ::atoi(propVal);
+
+            property_get("debug.bokeh.focusy", propVal, "-1");
+            getFocusY = ::atoi(propVal);
+
+            if (saveImage == 1) {
+                sprintf(savePicture, "/sdcard/Pictures/camera_image_%d_%d_5M_%d.yuv", getpid(), gettid(), getOrientation);
+                mpMainImageBuf_1->saveToFile(savePicture); // 5M
+
+                sprintf(savePicture, "/sdcard/Pictures/camera_image_%d_%d_13M_%d.yuv", getpid(), gettid(), getOrientation);
+                mpMainImageBuf->saveToFile(savePicture); // 13M
+            }
+
+            int m5MPictureWidth = 1440;
+            int m5MPictureHeight = 2560;
+
+            int m13MPictureWidth = 2736;
+            int m13MPictureHeight = 4864;
+
+            int mCropPreviewWidth = 1080;
+            int mCropPreviewHeight = 1776;
+
+            int nMainWidth, nMainHeight, nSecondWidth, nSecondHeight;
+            int calculX, calculY;
 
             dbeImageData MainImageData, SecondImageData, BokehImageData;
+            dbeOrientation orientation;
+
+            MY_LOGD("-----Bokeh orientation = %d -----", getOrientation);
+            if (getOrientation == 0) {
+                orientation = ORI_0;
+                nMainWidth = m13MPictureWidth;
+                nMainHeight = m13MPictureHeight;
+                nSecondWidth = m5MPictureWidth;
+                nSecondHeight = m5MPictureHeight;
+                calculX = getFocusX * m13MPictureWidth / mCropPreviewWidth;
+                calculY = getFocusY * m13MPictureHeight / mCropPreviewHeight;
+            } else if (getOrientation == 90) {
+                orientation = ORI_90;
+                nMainWidth = m13MPictureHeight;
+                nMainHeight = m13MPictureWidth;
+                nSecondWidth = m5MPictureHeight;
+                nSecondHeight = m5MPictureWidth;
+                calculX = (mCropPreviewHeight - getFocusY) * m13MPictureHeight / mCropPreviewHeight;
+                calculY = getFocusX * m13MPictureWidth / mCropPreviewWidth;
+            } else if (getOrientation == 180) {
+                orientation = ORI_180;
+                nMainWidth = m13MPictureWidth;
+                nMainHeight = m13MPictureHeight;
+                nSecondWidth = m5MPictureWidth;
+                nSecondHeight = m5MPictureHeight;
+                calculX = (mCropPreviewWidth - getFocusX) * m13MPictureWidth / mCropPreviewWidth;
+                calculY = (mCropPreviewHeight - getFocusY) * m13MPictureHeight / mCropPreviewHeight;
+            } else if (getOrientation == 270) {
+                orientation = ORI_270;
+                nMainWidth = m13MPictureHeight;
+                nMainHeight = m13MPictureWidth;
+                nSecondWidth = m5MPictureHeight;
+                nSecondHeight = m5MPictureWidth;
+                calculX = getFocusY * m13MPictureHeight / mCropPreviewHeight;
+                calculY = (mCropPreviewWidth - getFocusX) * m13MPictureWidth / mCropPreviewWidth;
+            } else {
+                orientation = ORI_NONE;
+                calculX =  getFocusX;
+                calculY =  getFocusY;
+            }
+
+            if (getFocusX == -1 && getFocusY == -1) {
+                calculX =  getFocusX;
+                calculY =  getFocusY;
+            }
+
+            MY_LOGD("-----Bokeh nMainWidth = %d, nMainHeight = %d, nSecondWidth = %d, nSecondHeight = %d -----",
+                    nMainWidth, nMainHeight, nSecondWidth, nSecondHeight);
+            MY_LOGD("-----Bokeh focusX = %d, focusY = %d, calculX = %d, calculY = %d -----",
+                    getFocusX, getFocusY, calculX, calculY);
+
+            int nBokehWidth  = nMainWidth;
+            int nBokehHeight = nMainHeight;
 
             int size5M = mpMainImageBuf_1->getImgSize().w * mpMainImageBuf_1->getImgSize().h * 3 / 2;
             int size13M = mpMainImageBuf->getImgSize().w * mpMainImageBuf->getImgSize().h * 3 / 2;
 
             unsigned char *p5MBuf  = new unsigned char [size5M];
             unsigned char *p13MBuf  = new unsigned char [size13M];
-            unsigned char *pBokehMBuf  = new unsigned char [size13M];
+            unsigned char *pBokehBuf  = new unsigned char [size13M];
 
             saveToBuffer(mpMainImageBuf_1, p5MBuf);
             saveToBuffer(mpMainImageBuf, p13MBuf);
@@ -1413,61 +1494,46 @@ threadLoopUpdate()
             MainImageData.pImageBuffer = p13MBuf;
 
             // Bokeh image data
-            nBokehWidth  = nMainWidth;
-            nBokehHeight = nMainHeight;
             BokehImageData.nWidthStride = BokehImageData.nWidth = nBokehWidth;
             BokehImageData.nHeightStride = BokehImageData.nHeight = nBokehHeight;
             BokehImageData.nImageType = DBE_IMAGE_TYPE_NV21;
-            BokehImageData.pImageBuffer = pBokehMBuf;
+            BokehImageData.pImageBuffer = pBokehBuf;
 
             MY_LOGD("-----doBokehProcess----- dbeInit -----");
             int ret = dbeInit(NULL, NULL, NULL);
             if (ret != DBE_SUCCESS)
             {
-                //delete[]MainImageData.pImageBuffer;
-                //delete[]SecondImageData.pImageBuffer;
-                //delete[]BokehImageData.pImageBuffer;
-                //dbeRelease();
                 MY_LOGD("####### Bokeh error dbeInit ####### %d\n", ret);
-                //return MFALSE;
             }
 
             MY_LOGD("-----doBokehProcess----- dbePrepareComputation -----");
-            ret = dbePrepareComputation(&MainImageData, &SecondImageData, 1, 0.9, 4, NULL, ORI_NONE, false);
+            ret = dbePrepareComputation(&MainImageData, &SecondImageData, 1, 0.9, 4, NULL, orientation, false);
             if (ret != DBE_SUCCESS)
             {
-                //delete[]MainImageData.pImageBuffer;
-                //delete[]SecondImageData.pImageBuffer;
-                //delete[]BokehImageData.pImageBuffer;
-                //dbeRelease();
                 MY_LOGD("####### Bokeh error dbePrepareComputation ####### %d\n", ret);
-                //return MFALSE;
             }
 
             MY_LOGD("-----doBokehProcess----- dbeBokehImage -----");
-            ret = dbeBokehImage(0, 0, &BokehImageData);
+            ret = dbeBokehImage(calculX, calculY, &BokehImageData);
             if (ret != DBE_SUCCESS)
             {
-                //delete[]MainImageData.pImageBuffer;
-                //delete[]SecondImageData.pImageBuffer;
-                //delete[]BokehImageData.pImageBuffer;
-                //dbeRelease();
                 MY_LOGD("####### Bokeh error dbeBokehImage ####### %d\n", ret);
-                //return MFALSE;
             }
             MY_LOGD("-----doBokehProcess----- End -----");
 
             dbeRelease();
 
-            loadFromBuffer(mpMainImageBuf, pBokehMBuf);
+            loadFromBuffer(mpMainImageBuf, pBokehBuf);
 
             delete[]MainImageData.pImageBuffer;
             delete[]SecondImageData.pImageBuffer;
             delete[]BokehImageData.pImageBuffer;
 
-	        //mpMainImageBuf->saveToFile("/sdcard/bokeh_img.yuv");
-
-//Bokeh code complete
+            if (saveImage == 1) {
+                sprintf(savePicture, "/sdcard/Pictures/camera_image_%d_%d_Bokeh_%d.yuv", getpid(), gettid(), getOrientation);
+                mpMainImageBuf->saveToFile(savePicture);
+            }
+            //Bokeh code complete
 
             mpAlgoSrcImgBuf = postBufImg_Main2.buf;
             IImageBufferHeap* pSrcHeap  = mpAlgoSrcImgBuf->getImageBufferHeap();
