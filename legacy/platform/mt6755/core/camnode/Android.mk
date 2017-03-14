@@ -145,6 +145,9 @@ LOCAL_LDFLAGS += -ldl
 LOCAL_SHARED_LIBRARIES += libdl
 
 #-----------------------------------------------------------
+
+LOCAL_SHARED_LIBRARIES += libDepthBokehEffect
+
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libcam.camnode
 LOCAL_PROPRIETARY_MODULE := true

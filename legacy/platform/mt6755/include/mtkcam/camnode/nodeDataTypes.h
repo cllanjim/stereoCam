@@ -132,6 +132,7 @@ typedef enum NodeDataTypes{
     PASS2_CAP_DST_1      = 44,
     PASS2_CAP_DST_2      = 46,
     PASS2_CAP_DST_3      = 48,
+    PASS2_CAP_DST_4      = 49,
     JPEG_ENC_SW_SRC      = 100,
     JPEG_ENC_SW_DST      = 101,
     JPEG_ENC_HW_SRC      = 102,
@@ -158,9 +159,11 @@ typedef enum NodeDataTypes{
     SYNC_SRC_0           = 430,
     SYNC_SRC_1           = 431,
     SYNC_SRC_2           = 432,
-    SYNC_DST_0           = 433,
-    SYNC_DST_1           = 434,
-    SYNC_DST_2           = 435,
+    SYNC_SRC_3           = 433,
+    SYNC_DST_0           = 434,
+    SYNC_DST_1           = 435,
+    SYNC_DST_2           = 436,
+    SYNC_DST_3           = 437,
     STEREO_SRC           = 400,
     STEREO_FEO           = 401,
     STEREO_IMG           = 402,
@@ -173,9 +176,11 @@ typedef enum NodeDataTypes{
     STEREO_CTRL_IMG_1    = 414,
     STEREO_CTRL_RGB_1    = 415,
     STEREO_CTRL_MAIN_SRC = 416,
-    STEREO_CTRL_DST_M    = 417, // for SBS: main
-    STEREO_CTRL_DST_S    = 418, // for SBS: main2(small)
-    STEREO_CTRL_MAIN_DST = 419,
+    STEREO_CTRL_MAIN_SRC_1 = 417,
+
+    STEREO_CTRL_DST_M    = 418, // for SBS: main
+    STEREO_CTRL_DST_S    = 419, // for SBS: main2(small)
+    STEREO_CTRL_MAIN_DST = 420,
     /* image transform */
     TRANSFORM_SRC        = 500,
     TRANSFORM_DST_0      = 501,

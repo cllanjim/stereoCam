@@ -603,7 +603,6 @@ enquePass2(MBOOL const doCallback)
 {
     //workaround for start/stop recording
     Mutex::Autolock lock(mRecordingLock);
-
     CAM_TRACE_CALL();
     QParams enqueParams;
     vector<p2data> vP2data;
@@ -614,7 +613,6 @@ enquePass2(MBOOL const doCallback)
         // no dst buffers
         return MTRUE;
     }
-
     if( vP2data.size() == 0 )
     {
         MY_LOGE("no src/dst buf");
@@ -695,16 +693,14 @@ enquePass2(MBOOL const doCallback)
         //
         srcSize = src.mBuffer->getImgSize();
         timestamp = src.mBuffer->getTimestamp();
-        //
-        MY_LOGD("i %d data %d, buf 0x%x, va 0x%x, # 0x%X, type %d cnt %d",
+        MY_LOGD("i %d data %d, buf 0x%x, va 0x%x, # 0x%X, type %d cnt %d,%dx%d",
                 index,
                 pData->src.data,
                 src.mBuffer,
                 src.mBuffer->getBufVA(0),
                 magicNum,
                 mPass2Type,
-                muEnqFrameCnt);
-
+                muEnqFrameCnt,src.mBuffer->getImgSize().w,src.mBuffer->getImgSize().h);
         //for ZSD early callback
         if ( pData->src.data == PASS2_CAP_SRC )
         {
@@ -750,15 +746,14 @@ enquePass2(MBOOL const doCallback)
                     dst.bIsRwbEn = MTRUE;
                 }
             }
-            //
-            MY_LOGD("data %d, buf 0x%x, va 0x%x, tans %d usg %d, gputype(%d), isrwben(%d)",
+            MY_LOGD("data %d, buf 0x%x, va 0x%x, tans %d usg %d, gputype(%d), isrwben(%d),%dx%d",
                     dstDataType,
                     pDstBuf,
                     pDstBuf->getBufVA(0),
                     pOutReq->mTransform,
                     pOutReq->mUsage,
                     mbIsGPUProcType,
-                    dst.bIsRwbEn);
+                    dst.bIsRwbEn,pDstBuf->getImgSize().w,pDstBuf->getImgSize().h);
             //
             dst.mPortID             = mapToPortID(dstDataType);
             dst.mPortID.group       = index;
@@ -922,6 +917,7 @@ handleP2Done(QParams& rParams)
         {
             //MY_LOGD("Out PortID(0x%08X)",portId);
             MUINT32 nodeDataType = mapToNodeDataType( iterOut->mPortID );
+
             handlePostBuffer( nodeDataType, (MUINTPTR)iterOut->mBuffer, 0 );
             vpDstBufAddr.push_back(iterOut->mBuffer);
         }
@@ -969,6 +965,7 @@ mapToPortID(MUINT32 const nodeDataType)
             break;
         case PASS2_PRV_DST_0:
         case PASS2_CAP_DST_0:
+        case PASS2_CAP_DST_4:
             return WDMAO;
             break;
         case PASS2_PRV_DST_1:
@@ -1006,8 +1003,11 @@ mapToNodeDataType(PortID const portId)
     if( _portId == IMGI )
         return isPreviewPath() ? PASS2_PRV_SRC : PASS2_CAP_SRC;
     else
-    if( _portId == WDMAO )
-        return isPreviewPath() ? PASS2_PRV_DST_0 : PASS2_CAP_DST_0;
+    if( _portId == WDMAO ) {
+			if(isPreviewPath()) return PASS2_PRV_DST_0;
+			if(getSensorIdx() == 0) return PASS2_CAP_DST_0;
+            return PASS2_CAP_DST_4;
+    }
     else
     if( _portId == WROTO )
         return isPreviewPath() ? PASS2_PRV_DST_1 : PASS2_CAP_DST_1;

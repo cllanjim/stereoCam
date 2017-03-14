@@ -132,8 +132,8 @@ StereoSettingProvider::getStereoParams(MINT32 const main_idx, MINT32 const main2
 //        OutData.jpsSize         = (char *)"2688x1984";  //(1080+264)x2, 1920+64, each image is clockwised rotated
 //        OutData.jpsSizesStr     = (char *)"2688x1984";
         //5M 16:9, for PASS2_CAP_DST and AP output size(gallery image)
-        OutData.refocusSize     = (char *)"3072x1728";//"4096x2304";
-        OutData.refocusSizesStr = (char *)"3072x1728";//"4096x2304,3072x1728";
+        OutData.refocusSize     = (char *)"4864x2736";//"3072x1728";//"4096x2304";
+        OutData.refocusSizesStr = (char *)"4864x2736";//"3072x1728";//"4096x2304,3072x1728";
         break;
     }
 
@@ -164,7 +164,7 @@ StereoSettingProvider::setImageRatio(STEREO_RATIO_E eRatio)
         refocusSize().h = 64; //16 align
         break;
     case eRatio_16_9:
-        imageResolution() = IMAGE_RESOLUTION_INFO_STRUCT(MSize(1920, 1080), MSize(1920, 1080), 16, 9);
+        imageResolution() = IMAGE_RESOLUTION_INFO_STRUCT(MSize(1280, 720), MSize(1280,720), 16, 9);
         refocusSize().h = 72; //For 16-align
         break;
     default:

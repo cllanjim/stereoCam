@@ -396,6 +396,9 @@ getPreviewSize(int *width, int *height) const
     MY_LOGD_IF(mEnableDebugLog, "AutoRLock");
     MyRWLock::AutoRLock _lock(mRWLock);
     mParameters.getPreviewSize(width, height);
+
+	*width = 1280;
+	*height = 720;
 }
 
 
