@@ -51,6 +51,7 @@ LOCAL_SRC_FILES := \
                 ./Cmd_test_preview.cpp \
                 ./Cmd_test_prv_cb.cpp \
                 ./Cmd_test_record.cpp \
+                ./Cmd_test_dac.cpp \
                 ./Main.cpp \
                 ./MyCamera.cpp \
                 ./Utils.cpp \

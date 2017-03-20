@@ -873,13 +873,76 @@ MBOOL
 StereoCtrlNodeImpl::
 onPostBuffer(MUINT32 const data, MUINTPTR const buf, MUINT32 const ext)
 {
+
+    static int currentDacA = -1;
+    static int currentDacB = -1;
+    static int i = 0;
+    static int j = 0;
+    static bool dumpA = false;
+    static bool dumpB = false;
+	NS3A::Param_T cam3aParam;
+    IHal3A* pHal3a_Main = IHal3A::createInstance(IHal3A::E_Camera_1, getOpenId_Main(), getName());
+
+    if ( ! pHal3a_Main )
+    {
+        MY_LOGE("pHal3a == NULL");
+        return INVALID_OPERATION;
+    }
+    //get Param from 3A
+    if ( ! pHal3a_Main->getParams(cam3aParam)
+        )
+    {
+        MY_LOGE("getParams fail");
+
+    }
+	if(data == STEREO_CTRL_IMG_0) {
+        if(currentDacA != cam3aParam.i4MFPos) {
+            currentDacA = cam3aParam.i4MFPos;
+            i = 0;
+            dumpA = false;
+        } else {
+		    i++;
+        }
+		if( i == 16 && dumpA == false) {
+            char szFileName_a[512];
+            IImageBuffer* srcBuffer = (IImageBuffer*)buf;
+            sprintf(szFileName_a, "/sdcard/dac/%dx%d_dac_%d_main.yuv", srcBuffer->getImgSize().w, srcBuffer->getImgSize().h,currentDacA);
+            ((IImageBuffer*)buf)->saveToFile(szFileName_a);
+            dumpA = true;
+        }
+    }
+    if(data == STEREO_CTRL_IMG_1) {
+        if(currentDacB != cam3aParam.i4MFPos) {
+            currentDacB = cam3aParam.i4MFPos;
+            j = 0;
+            dumpB = false;
+        } else {
+            j++;
+        }
+        if( j == 16 && dumpB == false) {
+            char szFileName_a[512];
+            IImageBuffer* srcBuffer = (IImageBuffer*)buf;
+            sprintf(szFileName_a, "/sdcard/dac/%dx%d_dac_%d_sub.yuv", srcBuffer->getImgSize().w, srcBuffer->getImgSize().h,currentDacB);
+            ((IImageBuffer*)buf)->saveToFile(szFileName_a);
+            dumpB = true;
+        }
+    }
+
 #if 0
-    if( data == STEREO_CTRL_MAIN_SRC || data == STEREO_CTRL_MAIN_SRC_1) {
+    if( data == STEREO_CTRL_MAIN_SRC_1) { // || data == STEREO_CTRL_IMG_0 || data == STEREO_CTRL_IMG_1) {
         char szFileName_a[512];
-        static int i = 10;
+        static int i = 0;
         IImageBuffer* srcBuffer = (IImageBuffer*)buf;
 
-        sprintf(szFileName_a, "/sdcard/dump_%dx%d_type_%d.yuv", srcBuffer->getImgSize().w, srcBuffer->getImgSize().h ,i++);
+        sprintf(szFileName_a, "/sdcard/frame_%d_%dx%d_sub.yuv", srcBuffer->getImgSize().w, srcBuffer->getImgSize().h ,i++);
+        ((IImageBuffer*)buf)->saveToFile(szFileName_a);
+    }
+    if( data == STEREO_CTRL_MAIN_SRC ) {// || data == STEREO_CTRL_MAIN_SRC_1) { // || data == STEREO_CTRL_IMG_0 || data == STEREO_CTRL_IMG_1) {
+        char szFileName_a[512];
+        static int j = 0;
+        IImageBuffer* srcBuffer = (IImageBuffer*)buf;
+
+        sprintf(szFileName_a, "/sdcard/frame_%d_%dx%d_main.yuv", srcBuffer->getImgSize().w, srcBuffer->getImgSize().h ,j++);
         ((IImageBuffer*)buf)->saveToFile(szFileName_a);
     }
 #endif

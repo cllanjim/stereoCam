@@ -50,6 +50,7 @@
     #define HAVE_COMMAND_test_record    "test_record"           //  test record
     #define HAVE_COMMAND_test_params    "test_params"           //  test parameters
     #define HAVE_COMMAND_test_engineer  "test_engineer"         //  test engineer
+    #define HAVE_COMMAND_test_dac       "test_dac"              //  test dac
 
 
 namespace android {
