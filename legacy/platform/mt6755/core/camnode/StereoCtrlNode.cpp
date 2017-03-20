@@ -89,6 +89,10 @@ using namespace android;
 #include "./inc/IspSyncControlHw.h"
 #include "./inc/DepthBokehEffect.h"
 #include "mtkcam/drv/imem_drv.h"
+
+#include <mtkcam/featureio/aaa_hal_common.h>
+#include <mtkcam/featureio/IHal3A.h>
+using namespace NS3A;
 #include <mtkcam/utils/imagebuf/BaseImageBufferHeap.h>
 #include <mtkcam/utils/imagebuf/IGrallocImageBufferHeap.h>
 #include <ui/gralloc_extra.h>
@@ -280,6 +284,9 @@ class StereoCtrlNodeImpl : public StereoCtrlNode
         MBOOL                   mbAllocDone;
         pthread_t               mThreadAlloc;
         pthread_t               mThreadDoFDDetection;
+
+        IHal3A*                 mpHal3A;
+
         MBOOL loadFromBuffer(IImageBuffer *pDstBuffer, unsigned char *pSrcBuf);
         MBOOL saveToBuffer(IImageBuffer *pSrcBuffer, unsigned char *pDstBuf);
 };
@@ -345,6 +352,7 @@ StereoCtrlNodeImpl::
     , mpAlgoDstImgBuf(NULL)
     , mpMainImageBuf(NULL)
     , mpMainImageBuf_1(NULL)
+    , mpHal3A(NULL)
     , mpFDSrcImgBuf(NULL)
     , mThreadAlloc(NULL)
     , mThreadDoFDDetection(NULL)
@@ -493,6 +501,16 @@ init()
         mpISC_Main->calRrzoMaxZoomRatio();
         mpISC_Main2->calRrzoMaxZoomRatio();
     }
+
+//#ifdef USE_3A
+    mpHal3A = IHal3A::createInstance(IHal3A::E_Camera_1,getOpenId_Main(),getName());
+    if(mpHal3A == NULL)
+    {
+        MY_LOGE("IHal3A:createInstance fail");
+        goto lbExit;
+    }
+        MY_LOGE("IHal3A:createInstance success");
+//#endif
     //
     ret = MTRUE;
 lbExit:
@@ -511,6 +529,13 @@ uninit()
     Mutex::Autolock lock(mAlgoLock);
     MBOOL ret = MTRUE;
     mbEnable = MFALSE;
+
+    if(mpHal3A)
+    {
+        mpHal3A->destroyInstance(getName());
+        mpHal3A = NULL;
+    }
+
     if ( mpStereoHal )
     {
         ret = mpStereoHal->STEREODestroy();
@@ -1381,6 +1406,19 @@ threadLoopUpdate()
 
 //add Bokeh code here
         if ( isCapturePath() ) {
+            Param_T r3aParam;
+            if(mpHal3A != NULL)
+                mpHal3A->getParams(r3aParam);
+            MY_LOGD("-----doBokehProcess----- focus area number:%d %d %d %d -----",r3aParam.rFocusAreas.rAreas[0].i4Left,r3aParam.rFocusAreas.rAreas[0].i4Top,r3aParam.rFocusAreas.rAreas[0].i4Right,r3aParam.rFocusAreas.rAreas[0].i4Bottom);
+            int focusPointX = (r3aParam.rFocusAreas.rAreas[0].i4Left + r3aParam.rFocusAreas.rAreas[0].i4Right) / 2;
+            int focusPointY = (r3aParam.rFocusAreas.rAreas[0].i4Top + r3aParam.rFocusAreas.rAreas[0].i4Bottom) / 2;
+            MY_LOGD("-----doBokehProcess----- focus point:%d %d",focusPointX,focusPointY);
+            //Change to axis for Image
+            focusPointX =((float)focusPointX + 1000)*4864/2000;
+            focusPointY =((float)focusPointY + 1000)*2736/2000;
+            MY_LOGD("-----doBokehProcess----- target focus point:%d %d",focusPointX,focusPointY);
+
+
 
             int nMainWidth = 4864;
             int nMainHeight = 2736;
@@ -1447,7 +1485,7 @@ threadLoopUpdate()
             }
 
             MY_LOGD("-----doBokehProcess----- dbeBokehImage -----");
-            ret = dbeBokehImage(-1, -1, &BokehImageData);
+            ret = dbeBokehImage(focusPointX, focusPointY, &BokehImageData);
             if (ret != DBE_SUCCESS)
             {
                 delete[]MainImageData.pImageBuffer;
