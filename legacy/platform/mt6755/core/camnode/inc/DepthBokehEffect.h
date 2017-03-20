@@ -66,7 +66,7 @@ unsigned int dbeGetVersion();
 /*
 * Remarks:      Initialize Depth Bokeh Effect SDK.
 * Return Value: error codes indicating "dbeInit" status.
-* Parameters:   pParameterFileList  -- parameter file list.
+* Parameters:   pParameterFileList  -- parameter file
 *               allocator    -- user-defined memory allocator input.
 *               deallocator  -- user-defined memory deallocator input.
 */	
@@ -87,7 +87,6 @@ int dbeRelease();
                 pSecondImage       -- second image input
                 fUpScale            -- upscale ratio of the main image.
                 fDownScale          -- downscale ratio of the second image
-				nProcessLevel       -- process level
 				nReserved           -- reserved parameter
 				orientation         -- phone orientation when take photo
 				bCameraAlongX       -- if bCameraAlongX==true, dual camera configured along X(Horizontal),
@@ -97,7 +96,8 @@ int dbeRelease();
 
 
 int dbePrepareComputation(_In_ dbeImageData* pMainImage, _In_ dbeImageData* pSecondImage, _In_ float fUpScale,
-	_In_ float fDownScale, _In_ int nProcessLevel, _In_ int nReserved, dbeOrientation orientation, bool bCameraAlongX);
+	_In_ float fDownScale, _In_ int nReserved, _In_ dbeOrientation orientation, bool bCameraAlongX);
+
 
 
 /*
@@ -107,9 +107,10 @@ int dbePrepareComputation(_In_ dbeImageData* pMainImage, _In_ dbeImageData* pSec
 *               nFocusY            -- Y coordinate of focus point
 *               pBokehImage        -- bokeh image output.
 */
-int dbeBokehImage(int nFocusX, int nFocusY, _Out_ dbeImageData* pBokehImage);
 
-		
+int dbeBokehImage(int nFocusX, int nFocusY, _Out_ dbeImageData* pBokehImage, float fFNumber);
+
+
 }
 
 #endif

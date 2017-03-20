@@ -1473,7 +1473,7 @@ threadLoopUpdate()
             }
 
             MY_LOGD("-----doBokehProcess----- dbePrepareComputation -----");
-            ret = dbePrepareComputation(&MainImageData, &SecondImageData, 1.0 , 0.9, 4 , 0, ORI_0, false);
+            ret = dbePrepareComputation(&MainImageData, &SecondImageData, 1.0 , 0.9, 0, ORI_0, false);
             if (ret != DBE_SUCCESS)
             {
                 delete[]MainImageData.pImageBuffer;
@@ -1485,7 +1485,7 @@ threadLoopUpdate()
             }
 
             MY_LOGD("-----doBokehProcess----- dbeBokehImage -----");
-            ret = dbeBokehImage(focusPointX, focusPointY, &BokehImageData);
+            ret = dbeBokehImage(focusPointX, focusPointY, &BokehImageData,0);
             if (ret != DBE_SUCCESS)
             {
                 delete[]MainImageData.pImageBuffer;
