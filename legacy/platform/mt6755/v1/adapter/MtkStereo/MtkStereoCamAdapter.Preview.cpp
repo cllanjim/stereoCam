@@ -364,6 +364,7 @@ onHandleStartPreview()
         mpDefaultCtrlNode_Main2->setForceRotation( MTRUE, rotationAnagle);
     }
     //
+    /*
     if(mpStereoCtrlNode)
     {
         if(mpStereoNode != nullptr && mpStereoNode_Main2 != nullptr)
@@ -372,6 +373,7 @@ onHandleStartPreview()
             mpStereoCtrlNode->init();
         }
     }
+    */
 
     //
     MY_LOGD("rawType(%d)",rawType);
@@ -416,10 +418,13 @@ onHandleStartPreview()
     mpCamGraph->connectData(    CONTROL_PRV_SRC,    SYNC_SRC_0,         mpDefaultCtrlNode,          mpSyncNode);
     mpCamGraph->connectData(    CONTROL_CAP_SRC,    SYNC_SRC_2,         mpDefaultCtrlNode,          mpSyncNode);
     // [ SyncNode -- SNode (prepare stereo algo input data) ]
-    //mpCamGraph->connectData(    SYNC_DST_1,         STEREO_SRC,         mpSyncNode,                 mpStereoNode_Main2);
+    mpCamGraph->connectData(    SYNC_DST_1,         STEREO_SRC,         mpSyncNode,                 mpStereoNode_Main2);
     mpCamGraph->connectData(    SYNC_DST_0,         STEREO_SRC,         mpSyncNode,                 mpStereoNode);
+    mpCamGraph->connectData(    STEREO_IMG,         STEREO_CTRL_IMG_1,   mpStereoNode_Main2,         mpStereoCtrlNode);
+    mpCamGraph->connectData(    STEREO_IMG,         STEREO_CTRL_IMG_0,   mpStereoNode,               mpStereoCtrlNode);
+
     // // [ SCNode -- ITNode ]
-    mpCamGraph->connectData(    STEREO_IMG,  TRANSFORM_SRC,      mpStereoNode,           mpImgTransformNode);
+    mpCamGraph->connectData(    STEREO_CTRL_DST_M,  TRANSFORM_SRC,      mpStereoCtrlNode,           mpImgTransformNode);
 
     MY_LOGD("CamGraph:connectNotify");
     mpCamGraph->connectNotify(  PASS1_START_ISP,    mpPass1Node_Main2,  mpDefaultCtrlNode_Main2);
@@ -620,7 +625,7 @@ forceStopAndCleanPreview()
     //
     if ( mpStereoCtrlNode != NULL )
     {
-        mpStereoCtrlNode->uninit();
+     //   mpStereoCtrlNode->uninit();
         mpStereoCtrlNode->destroyInstance();
         mpStereoCtrlNode = NULL;
     }
