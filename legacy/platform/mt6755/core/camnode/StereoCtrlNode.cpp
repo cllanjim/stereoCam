@@ -178,6 +178,8 @@ namespace NSCamNode {
 /*******************************************************************************
  *
  ********************************************************************************/
+Mutex           gBokehLock;
+bool gStillBokehInProgress;
 class StereoCtrlNodeImpl : public StereoCtrlNode
 {
     public: // ctor & dtor
@@ -275,6 +277,8 @@ class StereoCtrlNodeImpl : public StereoCtrlNode
         list<PostBufInfo>       mlPostBufRgb;
         list<PostBufInfo>       mlPostBufRgb_Main2;
         // for capture fd use.
+        IImageBuffer*           mpImageBuf;
+        IImageBuffer*           mpImageBuf_1;
         IImageBuffer*           mpMainImageBuf;
         IImageBuffer*           mpMainImageBuf_1;
         //
@@ -289,6 +293,7 @@ class StereoCtrlNodeImpl : public StereoCtrlNode
 
         MBOOL loadFromBuffer(IImageBuffer *pDstBuffer, unsigned char *pSrcBuf);
         MBOOL saveToBuffer(IImageBuffer *pSrcBuffer, unsigned char *pDstBuf);
+        MBOOL doBokeh(IImageBuffer *pMainBuffer,IImageBuffer *pSubBuffer);
 };
 
 
@@ -510,9 +515,16 @@ init()
         goto lbExit;
     }
         MY_LOGE("IHal3A:createInstance success");
+    ret = MTRUE;
 //#endif
     //
-    ret = MTRUE;
+    MY_LOGD("-----Bokeh lib version:%d-----",dbeGetVersion());
+    MY_LOGD("-----Bokeh lib----- dbeInit --------");
+    if( DBE_SUCCESS != dbeInit(NULL, NULL, NULL))
+    {
+        MY_LOGD("####### Bokeh error dbeInit ####### %d\n", ret);
+        ret = MFALSE;
+    }
 lbExit:
     MY_LOGD("-");
     return ret;
@@ -557,6 +569,8 @@ uninit()
         mpStereoHal->destroyInstance();
         mpStereoHal = NULL;
     }
+    MY_LOGD("---Bokeh lib-----dbeRelease-------");
+    dbeRelease();
 
     return ret;
 }
@@ -874,13 +888,8 @@ StereoCtrlNodeImpl::
 onPostBuffer(MUINT32 const data, MUINTPTR const buf, MUINT32 const ext)
 {
 
-    static int currentDacA = -1;
-    static int currentDacB = -1;
-    static int i = 0;
-    static int j = 0;
-    static bool dumpA = false;
-    static bool dumpB = false;
 	NS3A::Param_T cam3aParam;
+	NS3A::ASDInfo_T cam3aASDInfo;
     IHal3A* pHal3a_Main = IHal3A::createInstance(IHal3A::E_Camera_1, getOpenId_Main(), getName());
 
     if ( ! pHal3a_Main )
@@ -889,12 +898,75 @@ onPostBuffer(MUINT32 const data, MUINTPTR const buf, MUINT32 const ext)
         return INVALID_OPERATION;
     }
     //get Param from 3A
-    if ( ! pHal3a_Main->getParams(cam3aParam)
-        )
+    if (!pHal3a_Main->getParams(cam3aParam))
     {
         MY_LOGE("getParams fail");
-
     }
+    if (!pHal3a_Main->getASDInfo(cam3aASDInfo))
+    {
+        MY_LOGE("getASDInfo fail");
+    }
+    int focusPointX = (cam3aParam.rFocusAreas.rAreas[0].i4Left + cam3aParam.rFocusAreas.rAreas[0].i4Right) / 2;
+    int focusPointY = (cam3aParam.rFocusAreas.rAreas[0].i4Top + cam3aParam.rFocusAreas.rAreas[0].i4Bottom) / 2;
+    //Change to axis for Image
+    focusPointX =((float)focusPointX + 1000)*4864/2000;
+    focusPointY =((float)focusPointY + 1000)*2736/2000;
+    MY_LOGD("---------- focus point:%d %d",focusPointX,focusPointY);
+
+
+    // get DAC value
+    int currentDac;
+    if(cam3aParam.i4MFPos != 0)
+        currentDac = cam3aParam.i4MFPos;
+    else
+        currentDac = cam3aASDInfo.i4AFPos;
+
+#if 1 //dump preview data
+    static int i = 0;
+	if(data == STEREO_CTRL_IMG_0) {
+        if( i % 10 == 0) {
+            char szFileName_a[512];
+            IImageBuffer* srcBuffer = (IImageBuffer*)buf;
+            sprintf(szFileName_a, "/sdcard/dac/%dx%d_touch_%dx%d_dac_%d_main.yuv", srcBuffer->getImgSize().w, srcBuffer->getImgSize().h,focusPointX,focusPointY,currentDac);
+            ((IImageBuffer*)buf)->saveToFile(szFileName_a);
+        }
+    }
+    if(data == STEREO_CTRL_IMG_1) {
+        static int j = 0;
+        if( j % 10 == 0) {
+            char szFileName_b[512];
+            IImageBuffer* srcBuffer = (IImageBuffer*)buf;
+            sprintf(szFileName_b, "/sdcard/dac/%dx%d_touch_%dx%d_dac_%d_sub.yuv", srcBuffer->getImgSize().w, srcBuffer->getImgSize().h,focusPointX,focusPointY,currentDac);
+            ((IImageBuffer*)buf)->saveToFile(szFileName_b);
+        }
+    }
+#endif
+
+#if 1 //dump still image
+    if( data == STEREO_CTRL_MAIN_SRC ) {
+        char szFileName_a[512];
+        static int i = 0;
+        IImageBuffer* srcBuffer = (IImageBuffer*)buf;
+
+        sprintf(szFileName_a, "/sdcard/frame_%d_%dx%d_touch_%dx%d_dac_%d_mainsensor.yuv", i++,srcBuffer->getImgSize().w, srcBuffer->getImgSize().h,focusPointX,focusPointY,currentDac);
+        ((IImageBuffer*)buf)->saveToFile(szFileName_a);
+    }
+    if( data == STEREO_CTRL_MAIN_SRC_1) {
+        char szFileName_b[512];
+        static int j = 0;
+        IImageBuffer* srcBuffer = (IImageBuffer*)buf;
+        sprintf(szFileName_b, "/sdcard/frame_%d_%dx%d_touch_%dx%d_dac_%d_subsensor.yuv", j++,srcBuffer->getImgSize().w, srcBuffer->getImgSize().h,focusPointX,focusPointY,currentDac);
+        ((IImageBuffer*)buf)->saveToFile(szFileName_b);
+    }
+#endif
+
+#if 0 //for manual dac
+    static int i = 0;
+    static int j = 0;
+    static bool dumpA = false;
+    static bool dumpB = false;
+    static int currentDacA = -1;
+    static int currentDacB = -1;
 	if(data == STEREO_CTRL_IMG_0) {
         if(currentDacA != cam3aParam.i4MFPos) {
             currentDacA = cam3aParam.i4MFPos;
@@ -906,7 +978,7 @@ onPostBuffer(MUINT32 const data, MUINTPTR const buf, MUINT32 const ext)
 		if( i == 16 && dumpA == false) {
             char szFileName_a[512];
             IImageBuffer* srcBuffer = (IImageBuffer*)buf;
-            sprintf(szFileName_a, "/sdcard/dac/%dx%d_dac_%d_main.yuv", srcBuffer->getImgSize().w, srcBuffer->getImgSize().h,currentDacA);
+            sprintf(szFileName_a, "/sdcard/dac/%dx%d_MF_dac_%d_main.yuv", srcBuffer->getImgSize().w, srcBuffer->getImgSize().h,currentDacA);
             ((IImageBuffer*)buf)->saveToFile(szFileName_a);
             dumpA = true;
         }
@@ -914,36 +986,18 @@ onPostBuffer(MUINT32 const data, MUINTPTR const buf, MUINT32 const ext)
     if(data == STEREO_CTRL_IMG_1) {
         if(currentDacB != cam3aParam.i4MFPos) {
             currentDacB = cam3aParam.i4MFPos;
-            j = 0;
+            i = 0;
             dumpB = false;
         } else {
-            j++;
+		    i++;
         }
-        if( j == 16 && dumpB == false) {
-            char szFileName_a[512];
+		if( i == 16 && dumpB == false) {
+            char szFileName_b[512];
             IImageBuffer* srcBuffer = (IImageBuffer*)buf;
-            sprintf(szFileName_a, "/sdcard/dac/%dx%d_dac_%d_sub.yuv", srcBuffer->getImgSize().w, srcBuffer->getImgSize().h,currentDacB);
-            ((IImageBuffer*)buf)->saveToFile(szFileName_a);
+            sprintf(szFileName_b, "/sdcard/dac/%dx%d_MF_dac_%d_sub.yuv", srcBuffer->getImgSize().w, srcBuffer->getImgSize().h,currentDacB);
+            ((IImageBuffer*)buf)->saveToFile(szFileName_b);
             dumpB = true;
         }
-    }
-
-#if 0
-    if( data == STEREO_CTRL_MAIN_SRC_1) { // || data == STEREO_CTRL_IMG_0 || data == STEREO_CTRL_IMG_1) {
-        char szFileName_a[512];
-        static int i = 0;
-        IImageBuffer* srcBuffer = (IImageBuffer*)buf;
-
-        sprintf(szFileName_a, "/sdcard/frame_%d_%dx%d_sub.yuv", srcBuffer->getImgSize().w, srcBuffer->getImgSize().h ,i++);
-        ((IImageBuffer*)buf)->saveToFile(szFileName_a);
-    }
-    if( data == STEREO_CTRL_MAIN_SRC ) {// || data == STEREO_CTRL_MAIN_SRC_1) { // || data == STEREO_CTRL_IMG_0 || data == STEREO_CTRL_IMG_1) {
-        char szFileName_a[512];
-        static int j = 0;
-        IImageBuffer* srcBuffer = (IImageBuffer*)buf;
-
-        sprintf(szFileName_a, "/sdcard/frame_%d_%dx%d_main.yuv", srcBuffer->getImgSize().w, srcBuffer->getImgSize().h ,j++);
-        ((IImageBuffer*)buf)->saveToFile(szFileName_a);
     }
 #endif
 
@@ -1396,6 +1450,100 @@ doFaceDetection(){
  ********************************************************************************/
 MBOOL
 StereoCtrlNodeImpl::
+doBokeh(IImageBuffer *pMainBuffer,IImageBuffer *pSubBuffer)
+{
+    Mutex::Autolock lock(gBokehLock);
+    if( isCapturePath() == false && gStillBokehInProgress == true ) {
+        MY_LOGD("!!!!!!!!!!----doBokehProcess---still bokeh is in progress, skip preview bokeh!!!!!!!!!!");
+        return true;
+    }
+    int nMainWidth = pMainBuffer->getImgSize().w;
+    int nMainHeight = pMainBuffer->getImgSize().h;
+
+    int imageFormat = pSubBuffer->getImgFormat();
+    int nSecondWidth = pSubBuffer->getImgSize().w;
+    int nSecondHeight = pSubBuffer->getImgSize().h;
+
+    int nBokehWidth, nBokehHeight;
+
+    dbeImageData MainImageData, SecondImageData, BokehImageData;
+    Param_T r3aParam;
+    if(mpHal3A != NULL)
+        mpHal3A->getParams(r3aParam);
+
+    int focusPointX = (r3aParam.rFocusAreas.rAreas[0].i4Left + r3aParam.rFocusAreas.rAreas[0].i4Right) / 2;
+    int focusPointY = (r3aParam.rFocusAreas.rAreas[0].i4Top + r3aParam.rFocusAreas.rAreas[0].i4Bottom) / 2;
+     //Change to axis for Image
+    focusPointX =((float)focusPointX + 1000)*nMainWidth/2000;
+    focusPointY =((float)focusPointY + 1000)*nMainHeight/2000;
+    MY_LOGD("-----doBokehProcess----- target focus point:%d %d",focusPointX,focusPointY);
+
+    int size1 = pMainBuffer->getImgSize().w * pMainBuffer->getImgSize().h * 3 / 2;
+    int size2 = pSubBuffer->getImgSize().w * pSubBuffer->getImgSize().h * 3 / 2;
+
+    unsigned char *buf1  = new unsigned char [size1];
+    unsigned char *buf2 = new unsigned char [size2];
+    unsigned char *pBokehMBuf  = new unsigned char [size1];
+    saveToBuffer(pMainBuffer, buf1);
+    saveToBuffer(pSubBuffer, buf2);
+
+    // sub image data
+    SecondImageData.nWidthStride = SecondImageData.nWidth = nSecondWidth;
+    SecondImageData.nHeightStride = SecondImageData.nHeight = nSecondHeight;
+    SecondImageData.nImageType = DBE_IMAGE_TYPE_NV21; //fixme:change to imageformat
+    SecondImageData.pImageBuffer = buf2;
+
+    // main image data
+    MainImageData.nWidthStride = MainImageData.nWidth = nMainWidth;
+    MainImageData.nHeightStride = MainImageData.nHeight = nMainHeight;
+    MainImageData.nImageType = DBE_IMAGE_TYPE_NV21;
+    MainImageData.pImageBuffer = buf1;
+
+    // Bokeh image data
+    nBokehWidth  = nMainWidth;
+    nBokehHeight = nMainHeight;
+    BokehImageData.nWidthStride = BokehImageData.nWidth = nBokehWidth;
+    BokehImageData.nHeightStride = BokehImageData.nHeight = nBokehHeight;
+    BokehImageData.nImageType = DBE_IMAGE_TYPE_NV21;
+    BokehImageData.pImageBuffer = pBokehMBuf;
+
+    MY_LOGD("-----doBokehProcess----- dbePrepareComputation -----");
+    int ret = dbePrepareComputation(&MainImageData, &SecondImageData, 1.0 , 0.9, 0, ORI_NONE, false);
+    if (ret != DBE_SUCCESS)
+    {
+        delete[]MainImageData.pImageBuffer;
+        delete[]SecondImageData.pImageBuffer;
+        delete[]BokehImageData.pImageBuffer;
+        MY_LOGD("####### Bokeh error dbePrepareComputation ####### %d\n", ret);
+        return MFALSE;
+    }
+
+    MY_LOGD("-----doBokehProcess----- dbeBokehImage -----");
+    ret = dbeBokehImage(focusPointX, focusPointY, &BokehImageData,0);
+    if (ret != DBE_SUCCESS)
+    {
+        delete[]MainImageData.pImageBuffer;
+        delete[]SecondImageData.pImageBuffer;
+        delete[]BokehImageData.pImageBuffer;
+        MY_LOGD("####### Bokeh error dbeBokehImage ####### %d\n", ret);
+        return MFALSE;
+    }
+
+    loadFromBuffer(pMainBuffer, pBokehMBuf);
+
+    delete[]MainImageData.pImageBuffer;
+    delete[]SecondImageData.pImageBuffer;
+    delete[]BokehImageData.pImageBuffer;
+
+    //mpMainImageBuf->saveToFile("/sdcard/bokeh_img.yuv");
+    MY_LOGD("-----doBokehProcess---- End -----");
+
+    return true;
+}
+
+
+MBOOL
+StereoCtrlNodeImpl::
 threadLoopUpdate()
 {
     MY_LOGD("StereoCtrlNodeImpl::threadLoopUpdate() start");
@@ -1433,7 +1581,19 @@ threadLoopUpdate()
         }
         //
         postBufImg            = mlPostBufImg.front();
+        mpImageBuf = postBufImg.buf;
         postBufImg_Main2      = mlPostBufImg_Main2.front();
+        mpImageBuf_1 = postBufImg_Main2.buf;
+
+#if 1
+// preview Bokeh start
+        if ( isCapturePath() != true) {
+            MY_LOGD("-----do preview bokeh-------------");
+            doBokeh(mpImageBuf,mpImageBuf_1);
+        }
+
+//preview Bokeh end
+#endif
 
         // postBufFeo.data       = postBufImg.data;
         // postBufFeo.buf        = postBufImg.buf;
@@ -1469,106 +1629,11 @@ threadLoopUpdate()
 
 //add Bokeh code here
         if ( isCapturePath() ) {
-            Param_T r3aParam;
-            if(mpHal3A != NULL)
-                mpHal3A->getParams(r3aParam);
-            MY_LOGD("-----doBokehProcess----- focus area number:%d %d %d %d -----",r3aParam.rFocusAreas.rAreas[0].i4Left,r3aParam.rFocusAreas.rAreas[0].i4Top,r3aParam.rFocusAreas.rAreas[0].i4Right,r3aParam.rFocusAreas.rAreas[0].i4Bottom);
-            int focusPointX = (r3aParam.rFocusAreas.rAreas[0].i4Left + r3aParam.rFocusAreas.rAreas[0].i4Right) / 2;
-            int focusPointY = (r3aParam.rFocusAreas.rAreas[0].i4Top + r3aParam.rFocusAreas.rAreas[0].i4Bottom) / 2;
-            MY_LOGD("-----doBokehProcess----- focus point:%d %d",focusPointX,focusPointY);
-            //Change to axis for Image
-            focusPointX =((float)focusPointX + 1000)*4864/2000;
-            focusPointY =((float)focusPointY + 1000)*2736/2000;
-            MY_LOGD("-----doBokehProcess----- target focus point:%d %d",focusPointX,focusPointY);
-
-
-
-            int nMainWidth = 4864;
-            int nMainHeight = 2736;
-
-            int nSecondWidth = 2560;
-            int nSecondHeight = 1440;
-
-            int nBokehWidth, nBokehHeight;
-
-            dbeImageData MainImageData, SecondImageData, BokehImageData;
-
-            int size5M = mpMainImageBuf_1->getImgSize().w * mpMainImageBuf_1->getImgSize().h * 3 / 2;
-            int size13M = mpMainImageBuf->getImgSize().w * mpMainImageBuf->getImgSize().h * 3 / 2;
-
-            unsigned char *p5MBuf  = new unsigned char [size5M];
-            unsigned char *p13MBuf  = new unsigned char [size13M];
-            unsigned char *pBokehMBuf  = new unsigned char [size13M];
-            saveToBuffer(mpMainImageBuf_1, p5MBuf);
-            saveToBuffer(mpMainImageBuf, p13MBuf);
-            // 5M image data
-            SecondImageData.nWidthStride = SecondImageData.nWidth = nSecondWidth;
-            SecondImageData.nHeightStride = SecondImageData.nHeight = nSecondHeight;
-            SecondImageData.nImageType = DBE_IMAGE_TYPE_NV21;
-            SecondImageData.pImageBuffer = p5MBuf;
-
-            // 13M image data
-            MainImageData.nWidthStride = MainImageData.nWidth = nMainWidth;
-            MainImageData.nHeightStride = MainImageData.nHeight = nMainHeight;
-            MainImageData.nImageType = DBE_IMAGE_TYPE_NV21;
-            MainImageData.pImageBuffer = p13MBuf;
-
-            // Bokeh image data
-            nBokehWidth  = nMainWidth;
-            nBokehHeight = nMainHeight;
-            BokehImageData.nWidthStride = BokehImageData.nWidth = nBokehWidth;
-            BokehImageData.nHeightStride = BokehImageData.nHeight = nBokehHeight;
-            BokehImageData.nImageType = DBE_IMAGE_TYPE_NV21;
-            BokehImageData.pImageBuffer = pBokehMBuf;
-
-            MY_LOGD("-----Bokeh lib version:%d-----",dbeGetVersion());
-
-            MY_LOGD("-----doBokehProcess----- dbeInit -----");
-            int ret = dbeInit(NULL, NULL, NULL);
-            if (ret != DBE_SUCCESS)
-            {
-                delete[]MainImageData.pImageBuffer;
-                delete[]SecondImageData.pImageBuffer;
-                delete[]BokehImageData.pImageBuffer;
-                dbeRelease();
-                MY_LOGD("####### Bokeh error dbeInit ####### %d\n", ret);
-                return MFALSE;
-            }
-
-            MY_LOGD("-----doBokehProcess----- dbePrepareComputation -----");
-            ret = dbePrepareComputation(&MainImageData, &SecondImageData, 1.0 , 0.9, 0, ORI_0, false);
-            if (ret != DBE_SUCCESS)
-            {
-                delete[]MainImageData.pImageBuffer;
-                delete[]SecondImageData.pImageBuffer;
-                delete[]BokehImageData.pImageBuffer;
-                dbeRelease();
-                MY_LOGD("####### Bokeh error dbePrepareComputation ####### %d\n", ret);
-                return MFALSE;
-            }
-
-            MY_LOGD("-----doBokehProcess----- dbeBokehImage -----");
-            ret = dbeBokehImage(focusPointX, focusPointY, &BokehImageData,0);
-            if (ret != DBE_SUCCESS)
-            {
-                delete[]MainImageData.pImageBuffer;
-                delete[]SecondImageData.pImageBuffer;
-                delete[]BokehImageData.pImageBuffer;
-                dbeRelease();
-                MY_LOGD("####### Bokeh error dbeBokehImage ####### %d\n", ret);
-                return MFALSE;
-            }
-            MY_LOGD("-----doBokehProcess----- End -----");
-
-            dbeRelease();
-
-            loadFromBuffer(mpMainImageBuf, pBokehMBuf);
-
-            delete[]MainImageData.pImageBuffer;
-            delete[]SecondImageData.pImageBuffer;
-            delete[]BokehImageData.pImageBuffer;
-
-	        //mpMainImageBuf->saveToFile("/sdcard/bokeh_img.yuv");
+            MY_LOGD("-----do capture bokeh-------------");
+            gStillBokehInProgress = true;
+            doBokeh(mpMainImageBuf,mpMainImageBuf_1);
+            gStillBokehInProgress = false;
+            MY_LOGD("-----do capture bokeh done-----------");
         }
 //Bokeh code complete
 
@@ -1762,7 +1827,7 @@ saveToBuffer(IImageBuffer *pSrcBuffer, unsigned char *pDstBuf)
 
         memcpy(pDstBuf + offset, pBuf, size);
 
-        MY_LOGD("Bokeh saveToBuffer [%d-th plane] write %d bytes to pDstBuf, offset: %d", i, size, offset);
+        //MY_LOGD("Bokeh saveToBuffer [%d-th plane] write %d bytes to pDstBuf, offset: %d", i, size, offset);
 
         offset += size;
     }
@@ -1788,7 +1853,7 @@ loadFromBuffer(IImageBuffer *pDstBuffer, unsigned char *pSrcBuf)
 
         memcpy(pBuf, pSrcBuf + offset, size);
 
-        MY_LOGD("Bokeh loadFromBuffer [%d-th plane] write %d bytes to pDstBuffer, offset: %d", i, size, offset);
+//        MY_LOGD("Bokeh loadFromBuffer [%d-th plane] write %d bytes to pDstBuffer, offset: %d", i, size, offset);
 
         offset += size;
     }
