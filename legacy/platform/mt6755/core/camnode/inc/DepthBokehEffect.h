@@ -1,6 +1,8 @@
 #ifndef __DEPTH_BOKEH_EFFECT_H__
 #define __DEPTH_BOKEH_EFFECT_H__
 
+//#define WENTAI_DEBUG
+
 
 extern "C" {
 
@@ -9,6 +11,7 @@ extern "C" {
 #define DBE_IMAGE_TYPE_NV12            0
 #define DBE_IMAGE_TYPE_NV21            1
 #define DBE_IMAGE_TYPE_GRAY            2
+#define DBE_IMAGE_TYPE_YV12            3
 
 /* SDK error code */
 #define DBE_SUCCESS                    0
