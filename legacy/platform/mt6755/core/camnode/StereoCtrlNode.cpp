@@ -1511,18 +1511,39 @@ doBokeh(IImageBuffer *pMainBuffer,IImageBuffer *pSubBuffer)
     int nMainWidth = pMainBuffer->getImgSize().w;
     int nMainHeight = pMainBuffer->getImgSize().h;
 
-    int imageFormat = pSubBuffer->getImgFormat();
     int nSecondWidth = pSubBuffer->getImgSize().w;
-
-
     int nSecondHeight = pSubBuffer->getImgSize().h;
 
     int nBokehWidth, nBokehHeight;
 
+    int imageFormat;
+    switch(pMainBuffer->getImgFormat()) {
+    case HAL_PIXEL_FORMAT_YV12:
+        imageFormat = DBE_IMAGE_TYPE_YV12;
+        break;
+        /*
+    case PIXEL_FORMAT_YUV420SP_NV12:
+        imageFormat = DBE_IMAGE_TYPE_NV12;
+        */
+    case HAL_PIXEL_FORMAT_YCrCb_420_SP:
+        imageFormat = DBE_IMAGE_TYPE_NV21;
+    default:
+        imageFormat = DBE_IMAGE_TYPE_NV21;
+    }
+
     dbeImageData MainImageData, SecondImageData, BokehImageData;
     Param_T r3aParam;
-    if(mpHal3A != NULL)
+	NS3A::ASDInfo_T cam3aASDInfo;
+    if(mpHal3A != NULL) {
         mpHal3A->getParams(r3aParam);
+        mpHal3A->getASDInfo(cam3aASDInfo);
+    }
+    // get DAC value
+    int currentDac;
+    if(r3aParam.i4MFPos != 0)
+        currentDac = r3aParam.i4MFPos;
+    else
+        currentDac = cam3aASDInfo.i4AFPos;
 
     int focusPointX = (r3aParam.rFocusAreas.rAreas[0].i4Left + r3aParam.rFocusAreas.rAreas[0].i4Right) / 2;
     int focusPointY = (r3aParam.rFocusAreas.rAreas[0].i4Top + r3aParam.rFocusAreas.rAreas[0].i4Bottom) / 2;
@@ -1531,13 +1552,6 @@ doBokeh(IImageBuffer *pMainBuffer,IImageBuffer *pSubBuffer)
     focusPointY =((float)focusPointY + 1000)*nMainHeight/2000;
     MY_LOGD("-----doBokehProcess----- target focus point:%d %d",focusPointX,focusPointY);
 
-#if 1
-    char szFileName[512];
-    sprintf(szFileName, "/sdcard/preview/main_%dx%d_touch_%dx%d.yuv", pMainBuffer->getImgSize().w, pMainBuffer->getImgSize().h,focusPointX,focusPointY);
-    pMainBuffer->saveToFile(szFileName);
-    sprintf(szFileName, "/sdcard/preview/sub_%dx%d_touch_%dx%d.yuv", pSubBuffer->getImgSize().w, pSubBuffer->getImgSize().h,focusPointX,focusPointY);
-    pSubBuffer->saveToFile(szFileName);
-#endif
     if(isCapturePath() == true) {
         saveToBuffer(pMainBuffer, mMainCaptureBuf);
         saveToBuffer(pSubBuffer, mSubCaptureBuf);
@@ -1569,16 +1583,26 @@ doBokeh(IImageBuffer *pMainBuffer,IImageBuffer *pSubBuffer)
     BokehImageData.nHeightStride = BokehImageData.nHeight = nBokehHeight;
     BokehImageData.nImageType = imageFormat;
 
-    MY_LOGD("-----doBokehProcess----- dbePrepareComputation -----");
+    MY_LOGD("-----doBokehProcess----- dbePrepareComputation --format:%d---",imageFormat);
     int ret;
-    if(isCapturePath() == true)
-        dbePrepareComputation(&MainImageData, &SecondImageData, 1.0 , 0.9, 0, ORI_NONE, false);
-    else {
+    float factor;
+    if(isCapturePath() == true) {
+        if(currentDac <= 0)
+            factor = 0.9;
+        else
+            factor = 0.44405279/(1.131252073-(2.2975756e-4)*currentDac)*2;
+        MY_LOGD("-----doBokehProcess----- dbePrepareComputation, still capture factor:%f----",factor);
+        dbePrepareComputation(&MainImageData, &SecondImageData, 1.0 , factor, 0, ORI_NONE, false);
+    } else {
         static int level = 0;
+        if(currentDac <= 0)
+            factor = 1.69;
+        else
+            factor = (1.131252073-(2.2975756e-4)*currentDac)/1.185255*2;
         if(level == 0)
-        MY_LOGD("-----doBokehProcess----- dbePrepareComputation  level 0-----");
-        dbePrepareComputation(&MainImageData, &SecondImageData, 1.0 , 1.69, level, ORI_NONE, false);
-        if(++level>=15)
+            MY_LOGD("-----doBokehProcess----- dbePrepareComputation  level 0- factor:%f----dac:%d",factor,currentDac);
+        dbePrepareComputation(&MainImageData, &SecondImageData, 1.0 , factor, level, ORI_NONE, false);
+        //if(++level>=15)
             level = 0;
     }
     if (ret != DBE_SUCCESS)
@@ -1587,6 +1611,16 @@ doBokeh(IImageBuffer *pMainBuffer,IImageBuffer *pSubBuffer)
         return MFALSE;
     }
 
+#if 1
+    char szFileName[512];
+    static int num = 0;
+    if(num++ < 10) {
+    sprintf(szFileName, "/sdcard/preview/%d_main_%dx%d_touch_%dx%d_factor_%f.yuv", num,pMainBuffer->getImgSize().w, pMainBuffer->getImgSize().h,focusPointX,focusPointY,factor);
+    pMainBuffer->saveToFile(szFileName);
+    sprintf(szFileName, "/sdcard/preview/%d_sub_%dx%d_touch_%dx%d_factor_%f.yuv", num,pSubBuffer->getImgSize().w, pSubBuffer->getImgSize().h,focusPointX,focusPointY,factor);
+    pSubBuffer->saveToFile(szFileName);
+    }
+#endif
     MY_LOGD("-----doBokehProcess----- dbeBokehImage -----");
     ret = dbeBokehImage(focusPointX, focusPointY, &BokehImageData,0);
     if (ret != DBE_SUCCESS)
