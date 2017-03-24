@@ -563,6 +563,7 @@ init()
                 MY_LOGD("####### Bokeh error dbeInit ####### %d\n", ret);
                 ret = MFALSE;
             }
+            gStillBokehInProgress = true;
         }
         gBokehLibInited = true;
     }
@@ -616,6 +617,9 @@ uninit()
         MY_LOGD("---Bokeh lib-----dbeRelease -------");
         dbeRelease();
         gBokehLibInited = false;
+        if ( isCapturePath() == true) {
+            gStillBokehInProgress = false;
+        }
     }
 
     return ret;
@@ -1017,11 +1021,10 @@ onPostBuffer(MUINT32 const data, MUINTPTR const buf, MUINT32 const ext)
         if(currentDacA != cam3aParam.i4MFPos) {
             currentDacA = cam3aParam.i4MFPos;
             i = 0;
-            dumpA = false;
         } else {
 		    i++;
         }
-		if( i == 16 && dumpA == false) {
+		if( i == 32 && dumpA == false) {
             char szFileName_a[512];
             IImageBuffer* srcBuffer = (IImageBuffer*)buf;
             sprintf(szFileName_a, "/sdcard/dac/%dx%d_MF_dac_%d_main.yuv", srcBuffer->getImgSize().w, srcBuffer->getImgSize().h,currentDacA);
@@ -1032,18 +1035,28 @@ onPostBuffer(MUINT32 const data, MUINTPTR const buf, MUINT32 const ext)
     if(data == STEREO_CTRL_IMG_1) {
         if(currentDacB != cam3aParam.i4MFPos) {
             currentDacB = cam3aParam.i4MFPos;
-            i = 0;
-            dumpB = false;
+            j = 0;
         } else {
-		    i++;
+		    j++;
         }
-		if( i == 16 && dumpB == false) {
+		if( j == 32 && dumpB == false) {
             char szFileName_b[512];
             IImageBuffer* srcBuffer = (IImageBuffer*)buf;
             sprintf(szFileName_b, "/sdcard/dac/%dx%d_MF_dac_%d_sub.yuv", srcBuffer->getImgSize().w, srcBuffer->getImgSize().h,currentDacB);
             ((IImageBuffer*)buf)->saveToFile(szFileName_b);
             dumpB = true;
         }
+    }
+    if(dumpA == true && dumpB == true) {
+            if(cam3aParam.i4MFPos < 448) {
+                cam3aParam.i4MFPos = 448;
+            }
+            if(cam3aParam.i4MFPos < 651) {
+                dumpA = false;
+                dumpB = false;
+                cam3aParam.i4MFPos = cam3aParam.i4MFPos + 2;
+                pHal3a_Main->setParams(cam3aParam);
+            }
     }
 #endif
 
@@ -1590,7 +1603,7 @@ doBokeh(IImageBuffer *pMainBuffer,IImageBuffer *pSubBuffer)
         if(currentDac <= 0)
             factor = 0.9;
         else
-            factor = 0.44405279/(1.131252073-(2.2975756e-4)*currentDac)*2;
+            factor = (1.126676798-(2.30336526228e-4)*currentDac)/2.23796725*2;
         MY_LOGD("-----doBokehProcess----- dbePrepareComputation, still capture factor:%f----",factor);
         dbePrepareComputation(&MainImageData, &SecondImageData, 1.0 , factor, 0, ORI_NONE, false);
     } else {
@@ -1598,7 +1611,7 @@ doBokeh(IImageBuffer *pMainBuffer,IImageBuffer *pSubBuffer)
         if(currentDac <= 0)
             factor = 1.69;
         else
-            factor = (1.131252073-(2.2975756e-4)*currentDac)/1.185255*2;
+            factor = (1.126676798-(2.30336526228e-4)*currentDac)/1.1778775*2;
         if(level == 0)
             MY_LOGD("-----doBokehProcess----- dbePrepareComputation  level 0- factor:%f----dac:%d",factor,currentDac);
         dbePrepareComputation(&MainImageData, &SecondImageData, 1.0 , factor, level, ORI_NONE, false);
@@ -1730,9 +1743,7 @@ threadLoopUpdate()
 //add Bokeh code here
         if ( isCapturePath() ) {
             MY_LOGD("-----do capture bokeh-------------");
-            gStillBokehInProgress = true;
             doBokeh(mpMainImageBuf,mpMainImageBuf_1);
-            gStillBokehInProgress = false;
             MY_LOGD("-----do capture bokeh done-----------");
         }
 //Bokeh code complete
