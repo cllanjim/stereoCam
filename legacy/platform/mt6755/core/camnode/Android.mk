@@ -137,6 +137,12 @@ LOCAL_SHARED_LIBRARIES += libcamdrv
 LOCAL_SHARED_LIBRARIES += libcamalgo
 LOCAL_SHARED_LIBRARIES += libdpframework
 LOCAL_SHARED_LIBRARIES += libgralloc_extra
+
+LOCAL_SHARED_LIBRARIES += libJpgEncPipe
+LOCAL_C_INCLUDES += $(TOP)/$(MTK_PATH_SOURCE)/hardware/m4u/$(PLATFORM)
+LOCAL_C_INCLUDES += $(TOP)/$(MTK_PATH_SOURCE)/hardware/m4u/$(PLATFORM)/D1
+LOCAL_CFLAGS += -DMTKCAM_USE_LEGACY_JPEGHW="1"
+
 #
 LOCAL_SHARED_LIBRARIES += libcam.utils.cpuctrl
 #-----------------------------------------------------------

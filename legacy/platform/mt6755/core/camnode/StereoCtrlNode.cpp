@@ -96,6 +96,7 @@ using namespace NS3A;
 #include <mtkcam/utils/imagebuf/BaseImageBufferHeap.h>
 #include <mtkcam/utils/imagebuf/IGrallocImageBufferHeap.h>
 #include <ui/gralloc_extra.h>
+#include <enc/jpeg_hal.h>
 //
 #include <cutils/properties.h>
 
@@ -150,6 +151,7 @@ using namespace NS3A;
             String);          \
     } while(0)
 
+#define ALIGN16(x)  ((x + 15)&(~(16-1)))
 /*******************************************************************************
 *
 ********************************************************************************/
@@ -302,6 +304,9 @@ class StereoCtrlNodeImpl : public StereoCtrlNode
         MBOOL loadFromBuffer(IImageBuffer *pDstBuffer, unsigned char *pSrcBuf);
         MBOOL saveToBuffer(IImageBuffer *pSrcBuffer, unsigned char *pDstBuf);
         MBOOL doBokeh(IImageBuffer *pMainBuffer,IImageBuffer *pSubBuffer);
+        MBOOL nv21ToJpg(unsigned char *srcBuffer, int srcSize, int srcWidth, int srcHeight, unsigned char *dstBuffer, int dstSize, unsigned int* u4EncSize);
+        int getBufSize(int width, int height);
+        void dumpBufferToFile(unsigned char* buffer, int bufferSize, char* fileName);
 };
 
 
@@ -1579,6 +1584,44 @@ doBokeh(IImageBuffer *pMainBuffer,IImageBuffer *pSubBuffer)
         BokehImageData.pImageBuffer = mBokehPreviewBuf;
     }
 
+    if(isCapturePath() == true) {
+        int saveYUVImage, saveJPGImage;
+        char propVal[PROPERTY_VALUE_MAX];
+
+        property_get("debug.bokeh.camera.yuv.save", propVal, "1");
+        saveYUVImage = ::atoi(propVal);
+
+        property_get("debug.bokeh.camera.jpg.save", propVal, "0");
+        saveJPGImage = ::atoi(propVal);
+
+        if (saveYUVImage == 1) {
+            MY_LOGD("-----doBokehProcess----- saveYUVImage -----");
+            mpMainImageBuf->saveToFile("/sdcard/Pictures/camera_image_13M.yuv");
+            mpMainImageBuf_1->saveToFile("/sdcard/Pictures/camera_image_5M.yuv");
+        }
+
+        if (saveJPGImage == 1) {
+           MY_LOGD("-----doBokehProcess----- saveJPGImage -----");
+           unsigned int jpeg5MSize = 0;
+           unsigned int jpeg13MSize = 0;
+        
+           unsigned char *jpeg5MBuf = (unsigned char *)malloc(nSecondWidth * nSecondHeight);
+           unsigned char *jpeg13MBuf = (unsigned char *)malloc(nMainWidth * nMainHeight);
+        
+           nv21ToJpg(mSubCaptureBuf, nSecondWidth * nSecondHeight, nSecondWidth, nSecondHeight, jpeg5MBuf, nSecondWidth * nSecondHeight, &jpeg5MSize);
+           dumpBufferToFile(jpeg5MBuf, jpeg5MSize, "/sdcard/Pictures/camera_image_5M.jpg");
+        
+           nv21ToJpg(mMainCaptureBuf, nMainWidth * nMainHeight, nMainWidth, nMainHeight, jpeg13MBuf, nMainWidth * nMainHeight, &jpeg13MSize);
+           dumpBufferToFile(jpeg13MBuf, jpeg13MSize, "/sdcard/Pictures/camera_image_13M.jpg");
+           free(jpeg5MBuf);
+           free(jpeg13MBuf);
+           }
+           // save dac, focus point, etc
+           FILE* fp;
+           fp = fopen("/sdcard/Pictures/image_info.txt","w");
+            fprintf(fp, "%d,%d,%d", currentDac,focusPointX,focusPointY);
+            fclose(fp);
+    }
     // sub image data
     SecondImageData.nWidthStride = SecondImageData.nWidth = nSecondWidth;
     SecondImageData.nHeightStride = SecondImageData.nHeight = nSecondHeight;
@@ -1971,7 +2014,103 @@ loadFromBuffer(IImageBuffer *pDstBuffer, unsigned char *pSrcBuf)
 
     return MTRUE;
 }
+/******************************************************************************
+*
+*******************************************************************************/
+void StereoCtrlNodeImpl::
+dumpBufferToFile(unsigned char* buffer, int bufferSize, char* fileName) {
+    FILE* fp;
+    int index;
 
+    ALOGI("<dumpBufferToFile>buffer address:%p, bufferSize %d, fileName:%s", buffer, bufferSize, fileName);
+
+    if (buffer == NULL) {
+        ALOGI("ERROR: null buffer address, dump fail!!!");
+        return;
+    }
+
+    fp = fopen(fileName, "w");
+    if (fp == NULL) {
+        ALOGI("ERROR: Open file %s failed.", fileName);
+        return;
+    }
+
+    for (index = 0 ; index < bufferSize; index++) {
+        fprintf(fp, "%c", buffer[index]);
+    }
+    fclose(fp);
+    ALOGI("<dumpBufferToFile>dump buffer to file success!");
+}
+
+int StereoCtrlNodeImpl::
+getBufSize(int width, int height) {
+    int bufSize = 0;
+    int w;
+    w = ALIGN16(width);
+    bufSize = w * height;
+    ALOGI("<getBufSize>W(%d)xH(%d),BS(%d)", w, height, bufSize);
+    return bufSize;
+}
+
+MBOOL
+StereoCtrlNodeImpl::
+nv21ToJpg(unsigned char *srcBuffer, int srcSize, int srcWidth, int srcHeight,
+        unsigned char *dstBuffer, int dstSize, unsigned int* u4EncSize) {
+    bool ret = false;
+    int fIsAddSOI = true;  // if set true, not need add exif
+    int quality = 90;
+    size_t yuvAddr[3], yuvSize[3];
+
+    yuvSize[0] = getBufSize(srcWidth, srcHeight);
+    yuvSize[1] = getBufSize(srcWidth/2, srcHeight/2);
+    yuvSize[2] = getBufSize(srcWidth/2, srcHeight/2);
+    //
+    yuvAddr[0] = (size_t)srcBuffer;
+    yuvAddr[1] = yuvAddr[0]+yuvSize[0];
+    yuvAddr[2] = yuvAddr[1]+yuvSize[1];
+
+    ALOGI("<nv21ToJpg>begin");
+    ALOGI("<nv21ToJpg>srcBuffer:%p, dstBuffer:%p, srcWidth:%d, srcHeight:%d", (size_t)srcBuffer, (size_t)dstBuffer,
+            srcWidth, srcHeight);
+    ALOGI("<nv21ToJpg>yuvSize[0]=%p, yuvSize[1]=%p, yuvSize[2]=%p", yuvSize[0], yuvSize[1], yuvSize[2]);
+    ALOGI("<nv21ToJpg>yuvAddr[0]=%p, yuvAddr[1]=%p, yuvAddr[2]=%p", yuvAddr[0], yuvAddr[1], yuvAddr[2]);
+
+    JpgEncHal* pJpgEncoder = new JpgEncHal();
+
+    pJpgEncoder->unlock();
+    if (!pJpgEncoder->lock()) {
+        ALOGI("ERROR:can't lock jpeg resource!!!");
+        delete pJpgEncoder;
+        return false;
+    }
+
+    //pJpgEncoder->setEncSize(srcWidth, srcHeight, JpgEncHal::kENC_YV12_Format);
+    //pJpgEncoder->setSrcAddr((void*)ALIGN16(yuvAddr[0]), (void*)ALIGN16(yuvAddr[1]), (void*)ALIGN16(yuvAddr[2]));
+    //pJpgEncoder->setSrcBufSize(srcWidth, yuvSize[0], yuvSize[1], yuvSize[2]);
+
+    pJpgEncoder->setEncSize(srcWidth, srcHeight, JpgEncHal::kENC_NV21_Format);
+    pJpgEncoder->setSrcAddr((void*)ALIGN16(yuvAddr[0]), (void*)(ALIGN16(yuvAddr[0]) + ALIGN16(srcWidth) * ALIGN16(srcHeight)));
+    pJpgEncoder->setSrcBufSize(pJpgEncoder->getSrcBufMinStride(), ALIGN16(srcWidth) * ALIGN16(srcHeight),
+                            ALIGN16(srcWidth) * ALIGN16(srcHeight) / 2);
+    pJpgEncoder->setQuality(quality);
+    pJpgEncoder->setDstAddr((void *)dstBuffer);
+    pJpgEncoder->setDstSize(dstSize);
+    pJpgEncoder->enableSOI((fIsAddSOI > 0) ? 1 : 0);
+    pJpgEncoder->setSrcFD(-1, -1);
+    pJpgEncoder->setDstFD(-1);
+
+    ALOGI("<nv21ToJpg>start");
+    if (pJpgEncoder->start(u4EncSize)) {
+        ALOGI("<nv21ToJpg>Jpeg encode done, size = %d", *u4EncSize);
+        ret = true;
+    } else {
+        ALOGI("ERROR:encode fail");
+    }
+    pJpgEncoder->unlock();
+    delete pJpgEncoder;
+    ALOGI("<nv21ToJpg>end ret:%d", ret);
+    return ret;
+}
 ////////////////////////////////////////////////////////////////////////////////
 };  //namespace NSCamNode
 
