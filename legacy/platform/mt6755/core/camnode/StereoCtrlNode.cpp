@@ -1658,7 +1658,7 @@ doBokeh(IImageBuffer *pMainBuffer,IImageBuffer *pSubBuffer)
         if(level == 0)
             MY_LOGD("-----doBokehProcess----- dbePrepareComputation  level 0- factor:%f----dac:%d",factor,currentDac);
         dbePrepareComputation(&MainImageData, &SecondImageData, 1.0 , factor, level, ORI_NONE, false);
-        //if(++level>=15)
+        if(++level>=15)
             level = 0;
     }
     if (ret != DBE_SUCCESS)
@@ -1668,12 +1668,19 @@ doBokeh(IImageBuffer *pMainBuffer,IImageBuffer *pSubBuffer)
     }
 
 #if 1
-    char szFileName[512];
+    char propVal[PROPERTY_VALUE_MAX];
+    property_get("debug.bokeh.camera.preview.dump", propVal, "0");
+    bool dump = ::atoi(propVal);
     static int num = 0;
-    if(num++ < 10) {
-    sprintf(szFileName, "/sdcard/preview/%d_main_%dx%d_touch_%dx%d_factor_%f.yuv", num,pMainBuffer->getImgSize().w, pMainBuffer->getImgSize().h,focusPointX,focusPointY,factor);
+    if(dump == 0)  {
+        num = 0;
+    }
+
+    if(num++<10 && dump == 1) {
+    char szFileName[512];
+    sprintf(szFileName, "/sdcard/preview/main_%dx%d_touch_%dx%d_factor_%f_%d.yuv", pMainBuffer->getImgSize().w, pMainBuffer->getImgSize().h,focusPointX,focusPointY,factor,num);
     pMainBuffer->saveToFile(szFileName);
-    sprintf(szFileName, "/sdcard/preview/%d_sub_%dx%d_touch_%dx%d_factor_%f.yuv", num,pSubBuffer->getImgSize().w, pSubBuffer->getImgSize().h,focusPointX,focusPointY,factor);
+    sprintf(szFileName, "/sdcard/preview/sub_%dx%d_touch_%dx%d_factor_%f_%d.yuv", pSubBuffer->getImgSize().w, pSubBuffer->getImgSize().h,focusPointX,focusPointY,factor,num);
     pSubBuffer->saveToFile(szFileName);
     }
 #endif

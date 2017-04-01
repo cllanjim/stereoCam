@@ -417,6 +417,7 @@ onHandleStartPreview()
     mpCamGraph->connectData(    CONTROL_PRV_SRC,    SYNC_SRC_1,         mpDefaultCtrlNode_Main2,    mpSyncNode);
     mpCamGraph->connectData(    CONTROL_PRV_SRC,    SYNC_SRC_0,         mpDefaultCtrlNode,          mpSyncNode);
     mpCamGraph->connectData(    CONTROL_CAP_SRC,    SYNC_SRC_2,         mpDefaultCtrlNode,          mpSyncNode);
+    mpCamGraph->connectData(    CONTROL_CAP_SRC,    SYNC_SRC_3,         mpDefaultCtrlNode_Main2,    mpSyncNode);
     // [ SyncNode -- SNode (prepare stereo algo input data) ]
     mpCamGraph->connectData(    SYNC_DST_1,         STEREO_SRC,         mpSyncNode,                 mpStereoNode_Main2);
     mpCamGraph->connectData(    SYNC_DST_0,         STEREO_SRC,         mpSyncNode,                 mpStereoNode);
