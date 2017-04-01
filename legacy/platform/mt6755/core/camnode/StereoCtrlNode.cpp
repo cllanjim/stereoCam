@@ -556,14 +556,14 @@ init()
         if ( isCapturePath() == false ) {
             MY_LOGD("-----Bokeh lib version:%d-----",dbeGetVersion());
             MY_LOGD("-----Bokeh lib----- dbeInit  for preview--------");
-            if( DBE_SUCCESS != dbeInit("/system/vendor/etc/control_param_BokehPyramid_MTK720p_LocalMean28.txt", NULL, NULL))
+            if( DBE_SUCCESS != dbeInit("/system/vendor/etc/control_param_BokehPyramid_MTK720p_LocalMean28.txt", true))
             {
                 MY_LOGD("####### Bokeh error dbeInit ####### %d\n", ret);
                 ret = MFALSE;
             }
         } else {
             MY_LOGD("-----Bokeh lib----- dbeInit  for capture--------");
-            if( DBE_SUCCESS != dbeInit("/system/vendor/etc/control_param_BokehPyramid_MTK_LocalMean28.txt", NULL, NULL))
+            if( DBE_SUCCESS != dbeInit("/system/vendor/etc/control_param_BokehPyramid_MTK_LocalMean28.txt", true))
             {
                 MY_LOGD("####### Bokeh error dbeInit ####### %d\n", ret);
                 ret = MFALSE;
@@ -1685,7 +1685,11 @@ doBokeh(IImageBuffer *pMainBuffer,IImageBuffer *pSubBuffer)
     }
 #endif
     MY_LOGD("-----doBokehProcess----- dbeBokehImage -----");
-    ret = dbeBokehImage(focusPointX, focusPointY, &BokehImageData,0);
+    if(isCapturePath() == true)
+        ret = dbeBokehImage(focusPointX, focusPointY, 128, 0, &BokehImageData);
+    else
+        ret = dbeBokehImage(focusPointX, focusPointY, 32, 0, &BokehImageData);
+
     if (ret != DBE_SUCCESS)
     {
         MY_LOGD("####### Bokeh error dbeBokehImage ####### %d\n", ret);

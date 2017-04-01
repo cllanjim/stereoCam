@@ -1,8 +1,6 @@
 #ifndef __DEPTH_BOKEH_EFFECT_H__
 #define __DEPTH_BOKEH_EFFECT_H__
 
-//#define WENTAI_DEBUG
-
 
 extern "C" {
 
@@ -49,11 +47,6 @@ typedef struct tagdbeDisparityData
 	unsigned int   nHeight;        //height of image;		 
 }dbeDisparityData;
 
-/* user-defined memory allocator*/
-typedef void* (*dbeAllocator)(size_t nSizeInBytes);  
-
-/* user-defined memory deallocator */
-typedef void  (*dbeDeallocator)(void* ptr);          
 
 #define _In_
 #define _In_opt_
@@ -70,10 +63,9 @@ unsigned int dbeGetVersion();
 * Remarks:      Initialize Depth Bokeh Effect SDK.
 * Return Value: error codes indicating "dbeInit" status.
 * Parameters:   pParameterFileList  -- parameter file
-*               allocator    -- user-defined memory allocator input.
-*               deallocator  -- user-defined memory deallocator input.
+                bEnableLog          -- Enable log, log TAG: BlackSesame
 */	
-int dbeInit(_In_opt_ const char *pParameterFile, _In_opt_ dbeAllocator allocator, _In_opt_ dbeDeallocator deallocator);
+int dbeInit(_In_ const char *pParameterFile, _In_ bool bEnableLog);
 
 /*
 * Remarks:      Release Depth Bokeh Effect SDK.
@@ -90,7 +82,7 @@ int dbeRelease();
                 pSecondImage       -- second image input
                 fUpScale            -- upscale ratio of the main image.
                 fDownScale          -- downscale ratio of the second image
-				nReserved           -- reserved parameter
+				nReserved           -- reserved parameter (Set 0 to compute disparity)
 				orientation         -- phone orientation when take photo
 				bCameraAlongX       -- if bCameraAlongX==true, dual camera configured along X(Horizontal),
 				                       if bCameraAlongX==false, dual camera configured along Y(Vertical)
@@ -99,7 +91,7 @@ int dbeRelease();
 
 
 int dbePrepareComputation(_In_ dbeImageData* pMainImage, _In_ dbeImageData* pSecondImage, _In_ float fUpScale,
-	_In_ float fDownScale, _In_ int nReserved, _In_ dbeOrientation orientation, bool bCameraAlongX);
+	_In_ float fDownScale, _In_ int nReserved, _In_ dbeOrientation orientation, _In_ bool bCameraAlongX);
 
 
 
@@ -108,10 +100,12 @@ int dbePrepareComputation(_In_ dbeImageData* pMainImage, _In_ dbeImageData* pSec
 * Return Value: error codes indicating "dbeBokehImage" status.
 * Parameters:   nFocusX            -- X coordinate of focus point
 *               nFocusY            -- Y coordinate of focus point
-*               pBokehImage        -- bokeh image output.
+*               nRefocusWinW       -- Refocus Window Size
+                fNumber            -- fNumber control the blur strength
+				pBokehImage        -- bokeh image output.
 */
 
-int dbeBokehImage(int nFocusX, int nFocusY, _Out_ dbeImageData* pBokehImage, float fFNumber);
+int dbeBokehImage(_In_ int nFocusX, _In_ int nFocusY, _In_ int nRefocusWinW, _In_ float fFNumber, _Out_ dbeImageData* pBokehImage);
 
 
 }
