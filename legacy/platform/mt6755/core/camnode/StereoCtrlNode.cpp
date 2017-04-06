@@ -1646,18 +1646,20 @@ doBokeh(IImageBuffer *pMainBuffer,IImageBuffer *pSubBuffer)
         if(currentDac <= 0)
             factor = 0.9;
         else
-            factor = (1.126676798-(2.30336526228e-4)*currentDac)/2.23796725*2;
+            //factor = (1.126676798-(2.30336526228e-4)*currentDac)/2.23796725*2;
+            factor = (1.117864185-(2.146086324e-4)*currentDac)/1.7315745*2/1.3;
         MY_LOGD("-----doBokehProcess----- dbePrepareComputation, still capture factor:%f----",factor);
-        dbePrepareComputation(&MainImageData, &SecondImageData, 1.0 , factor, 0, ORI_NONE, false);
+        dbePrepareComputation(&MainImageData, &SecondImageData, 1.3 , factor, 0, ORI_NONE, false);
     } else {
         static int level = 0;
         if(currentDac <= 0)
             factor = 1.69;
         else
-            factor = (1.126676798-(2.30336526228e-4)*currentDac)/1.1778775*2;
+            //factor = (1.126676798-(2.30336526228e-4)*currentDac)/1.1778775*2;
+            factor = (1.117864185-(2.146086324e-4)*currentDac)/0.911355*2/1.3;
         if(level == 0)
             MY_LOGD("-----doBokehProcess----- dbePrepareComputation  level 0- factor:%f----dac:%d",factor,currentDac);
-        dbePrepareComputation(&MainImageData, &SecondImageData, 1.0 , factor, level, ORI_NONE, false);
+        dbePrepareComputation(&MainImageData, &SecondImageData, 1.3 , factor, level, ORI_NONE, false);
         if(++level>=15)
             level = 0;
     }
@@ -1675,12 +1677,17 @@ doBokeh(IImageBuffer *pMainBuffer,IImageBuffer *pSubBuffer)
     if(dump == 0)  {
         num = 0;
     }
+    if(!makePath("/sdcard/mtklog/preview/",0660))
+    {
+        MY_LOGE("makePath [%s] fail","/sdcard/mtklog/preview/");
+    }
+
 
     if(num++<10 && dump == 1) {
     char szFileName[512];
-    sprintf(szFileName, "/sdcard/preview/main_%dx%d_touch_%dx%d_factor_%f_%d.yuv", pMainBuffer->getImgSize().w, pMainBuffer->getImgSize().h,focusPointX,focusPointY,factor,num);
+    sprintf(szFileName, "/sdcard/mtklog/preview/main_%dx%d_touch_%dx%d_factor_%f_%d.yuv", pMainBuffer->getImgSize().w, pMainBuffer->getImgSize().h,focusPointX,focusPointY,factor,num);
     pMainBuffer->saveToFile(szFileName);
-    sprintf(szFileName, "/sdcard/preview/sub_%dx%d_touch_%dx%d_factor_%f_%d.yuv", pSubBuffer->getImgSize().w, pSubBuffer->getImgSize().h,focusPointX,focusPointY,factor,num);
+    sprintf(szFileName, "/sdcard/mtklog/preview/sub_%dx%d_touch_%dx%d_factor_%f_%d.yuv", pSubBuffer->getImgSize().w, pSubBuffer->getImgSize().h,focusPointX,focusPointY,factor,num);
     pSubBuffer->saveToFile(szFileName);
     }
 #endif
@@ -1751,6 +1758,7 @@ threadLoopUpdate()
         mpImageBuf = postBufImg.buf;
         postBufImg_Main2      = mlPostBufImg_Main2.front();
         mpImageBuf_1 = postBufImg_Main2.buf;
+
 
 #if 1
 // preview Bokeh start
