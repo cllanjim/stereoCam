@@ -70,12 +70,12 @@
 #include "aaa_scheduler.h"
 #include "aaa_hal.h"
 
-/*WestAlgo: vitus@westalgo add for DualCam  ------  Start*/
+/*WestAlgo: vitus@westalgo add for DualCam  ------  Start
 extern "C"
 {
    #include "westalgo_3Async/aesync_algo.h"
 };
-/*WestAlgo: vitus@westalgo add for DualCam  ------  End*/
+WestAlgo: vitus@westalgo add for DualCam  ------  End*/
 
 using namespace NS3A;
 using namespace android;
@@ -482,13 +482,13 @@ Sync3AWrapper::
 update(MINT32 i4Opt)
 {
     MY_LOG("[%s] OPT(%d) +", __FUNCTION__, i4Opt);
-/*WestAlgo: vitus@westalgo add for DualCam  ------  Start*/
+/*WestAlgo: vitus@westalgo add for DualCam  ------  Start/
     strAETable strPreviewAEPlineTableMain2, strCaptureAEPlineTabMain2;
     strAETable strStrobeAEPlineTableMain2;
     strAFPlineInfo strStrobeAFPlineTabMain2;
     IAeMgr::getInstance().getCurrentPlineTable(m_i4Slave, strPreviewAEPlineTableMain2, strCaptureAEPlineTabMain2, strStrobeAEPlineTableMain2, strStrobeAFPlineTabMain2);
     dcsAESyncExposureTable(&strPreviewAEPlineTableMain2, &strCaptureAEPlineTabMain2);
-/*WestAlgo: vitus@westalgo add for DualCam  ------  End*/
+/WestAlgo: vitus@westalgo add for DualCam  ------  End*/
 
     if (i4Opt & (ISync3A::E_SYNC3A_DO_AE|ISync3A::E_SYNC3A_DO_AE_PRECAP))
     {
@@ -513,9 +513,59 @@ update(MINT32 i4Opt)
         rAEInfoSlave.i2FlareGain        = m_rAeSyncOutput.sub_ch.Output.i2FlareGain;
         rAEInfoSlave.i2FlareOffset      = m_rAeSyncOutput.sub_ch.Output.i2FlareOffset;
 
+        MY_LOG("johnny3A before DCS algo");
+        //MY_LOG("johnny3A [master] exposure mode:%d", rAEInfoMaster.u4ExposureMode);
+        MY_LOG("johnny3A [master] exposure time:%d", rAEInfoMaster.u4Eposuretime);
+        MY_LOG("johnny3A [master] afe gain:%d", rAEInfoMaster.u4AfeGain);
+        MY_LOG("johnny3A [master] isp gain:%d", rAEInfoMaster.u4IspGain);
+        MY_LOG("johnny3A [master] real ISO:%d", rAEInfoMaster.u4RealISO);
+        /*
+        MY_LOG("johnny3A [master] frame rate:%d", rAEInfoMaster.u2FrameRate);
+        MY_LOG("johnny3A [master] CW Value:%d", rAEInfoMaster.u4CWValue);
+        MY_LOG("johnny3A [master] flare gain:%d", rAEInfoMaster.i2FlareGain);
+        MY_LOG("johnny3A [master] flare offset:%d", rAEInfoMaster.i2FlareOffset);
+        */
+
+        //MY_LOG("johnny3A [slave] exposure mode:%d", rAEInfoSlave.u4ExposureMode);
+        MY_LOG("johnny3A [slave] exposure time:%d", rAEInfoSlave.u4Eposuretime);
+        MY_LOG("johnny3A [slave] afe gain:%d", rAEInfoSlave.u4AfeGain);
+        MY_LOG("johnny3A [slave] isp gain:%d", rAEInfoSlave.u4IspGain);
+        MY_LOG("johnny3A [slave] real ISO:%d", rAEInfoSlave.u4RealISO);
+        /*
+        MY_LOG("johnny3A [slave] frame rate:%d", rAEInfoSlave.u2FrameRate);
+        MY_LOG("johnny3A [slave] CW Value:%d", rAEInfoSlave.u4CWValue);
+        MY_LOG("johnny3A [slave] flare gain:%d", rAEInfoSlave.i2FlareGain);
+        MY_LOG("johnny3A [slave] flare offset:%d", rAEInfoSlave.i2FlareOffset);
+        */
 /*WestAlgo: vitus@westalgo add for DualCam  ------  Start*/
-        dcsAESyncProcess(&m_rAeSyncOutput, &rAEInfoSlave);
+        //dcsAESyncProcess(&m_rAeSyncOutput, &rAEInfoSlave);
 /*WestAlgo: vitus@westalgo add for DualCam  ------  End*/
+
+        MY_LOG("johnny3A after DCS algo");
+        //MY_LOG("johnny3A [master] exposure mode:%d", rAEInfoMaster.u4ExposureMode);
+        MY_LOG("johnny3A [master] exposure time:%d", rAEInfoMaster.u4Eposuretime);
+        MY_LOG("johnny3A [master] afe gain:%d", rAEInfoMaster.u4AfeGain);
+        MY_LOG("johnny3A [master] isp gain:%d", rAEInfoMaster.u4IspGain);
+        MY_LOG("johnny3A [master] real ISO:%d", rAEInfoMaster.u4RealISO);
+        /*
+        MY_LOG("johnny3A [master] frame rate:%d", rAEInfoMaster.u2FrameRate);
+        MY_LOG("johnny3A [master] CW Value:%d", rAEInfoMaster.u4CWValue);
+        MY_LOG("johnny3A [master] flare gain:%d", rAEInfoMaster.i2FlareGain);
+        MY_LOG("johnny3A [master] flare offset:%d", rAEInfoMaster.i2FlareOffset);
+        */
+        //rAEInfoSlave.u4AfeGain =rAEInfoSlave.u4AfeGain*10/14;
+//rAEInfoSlave.u4IspGain =rAEInfoSlave.u4IspGain*10/14;
+        //MY_LOG("johnny3A [slave] exposure mode:%d", rAEInfoSlave.u4ExposureMode);
+        MY_LOG("johnny3A [slave] exposure time:%d", rAEInfoSlave.u4Eposuretime);
+        MY_LOG("johnny3A [slave] afe gain:%d", rAEInfoSlave.u4AfeGain);
+        MY_LOG("johnny3A [slave] isp gain:%d", rAEInfoSlave.u4IspGain);
+        MY_LOG("johnny3A [slave] real ISO:%d", rAEInfoSlave.u4RealISO);
+        /*
+        MY_LOG("johnny3A [slave] frame rate:%d", rAEInfoSlave.u2FrameRate);
+        MY_LOG("johnny3A [slave] CW Value:%d", rAEInfoSlave.u4CWValue);
+        MY_LOG("johnny3A [slave] flare gain:%d", rAEInfoSlave.i2FlareGain);
+        MY_LOG("johnny3A [slave] flare offset:%d", rAEInfoSlave.i2FlareOffset);
+        */
 
         if (i4Opt & ISync3A::E_SYNC3A_DO_AE)
         {
@@ -692,7 +742,7 @@ init(MINT32 i4Policy, MINT32 i4Master, MINT32 i4Slave, const char* strName)
     m_pSync3AWrap->init(i4Master, i4Slave);
 
 /*WestAlgo: vitus@westalgo add for DualCam  ------  Start*/
-    dcsAESyncInit();
+  //  dcsAESyncInit();
 /*WestAlgo: vitus@westalgo add for DualCam  ------  End*/
 
     MY_LOG("[%s] %s: policy(%d), masterDev(%d), slaveDev(%d), m_pSync3AWrap(0x%08x)",
@@ -710,7 +760,7 @@ uninit()
     m_pSync3AWrap = NULL;
 
 /*WestAlgo: vitus@westalgo add for DualCam  ------  Start*/
-    dcsAESyncUnInit();
+  //  dcsAESyncUnInit();
 /*WestAlgo: vitus@westalgo add for DualCam  ------  End*/
 
     MY_LOG("[%s] %s: OK", __FUNCTION__, m_strName.c_str());
