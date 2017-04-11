@@ -1619,8 +1619,8 @@ doBokeh(IImageBuffer *pMainBuffer,IImageBuffer *pSubBuffer)
            // save dac, focus point, etc
            FILE* fp;
            fp = fopen("/sdcard/Pictures/image_info.txt","w");
-            fprintf(fp, "%d,%d,%d", currentDac,focusPointX,focusPointY);
-            fclose(fp);
+           fprintf(fp, "%05d,%05d,%05d", currentDac, focusPointX, focusPointY);
+           fclose(fp);
     }
     // sub image data
     SecondImageData.nWidthStride = SecondImageData.nWidth = nSecondWidth;
