@@ -1677,8 +1677,15 @@ doBokeh(IImageBuffer *pMainBuffer,IImageBuffer *pSubBuffer)
     pSubBuffer->saveToFile(szFileName);
     }
 #endif
-    MY_LOGD("-----doBokehProcess----- dbeBokehImage -----");
-    ret = dbeBokehImage(focusPointX, focusPointY, &BokehImageData,0);
+    char refocusLevel[PROPERTY_VALUE_MAX];
+    property_get("debug.bokeh.refocus.level", refocusLevel, "1");
+
+    int getLevel = ::atoi(refocusLevel);
+    float fFNumber = (float)getLevel / 15.0f;
+
+    MY_LOGD("-----doBokehProcess----- dbeBokehImage ----- __RefocusBar__ getLevel=%d, fFNumber=%f\n", getLevel, fFNumber);
+
+    ret = dbeBokehImage(focusPointX, focusPointY, &BokehImageData, fFNumber);
     if (ret != DBE_SUCCESS)
     {
         MY_LOGD("####### Bokeh error dbeBokehImage ####### %d\n", ret);
